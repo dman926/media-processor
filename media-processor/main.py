@@ -34,16 +34,16 @@ if __name__ == '__main__':
 	try:
 		args: argparse.Namespace = parser.parse_args()
 	except NotADirectoryError:
-		print('One of the supplied directories is malformed or does not exist. Exitting. (Error 1)')
+		print('One of the supplied directories is malformed or does not exist. Exiting. (Error 1)')
 		exit(1)
 	# Attach interrupt handler to shutdown threads gracefully
 	signal.signal(signal.SIGINT, service_shutdown)
 	if not connect_to_db():
-		print('Something went wrong connecting to the DB. Exitting. (Error 2)')
+		print('Something went wrong connecting to the DB. Exiting. (Error 2)')
 		exit(2)
 	print('Connected to DB.')
 	if not create_tables():
-		print('Something went wrong creating DB tables. Exitting. (Error 3)')
+		print('Something went wrong creating DB tables. Exiting. (Error 3)')
 		exit(3)
 	print('Tables created if not exist.')
 	try:
@@ -66,11 +66,11 @@ if __name__ == '__main__':
 				print('Executing commands.')
 				try:
 					if command(commands[:-1]):
-						print('Commands executed successfully.')
+						print('All commands executed successfully.')
 					else:
-						print('Commands did not execute successfully.')
+						print('Some commands did not execute successfully.')
 				except Exception as e:
-					print(f'Commands did not execute successfully. [{e}] error occured')
+					print(f'Some commands did not execute successfully. [{e}] error occured')
 				commands: list[str] = []
 	except ServiceExit:
 		print('Shutting down threads.')
@@ -83,4 +83,4 @@ if __name__ == '__main__':
 			print("Successfully disconnected from DB.")
 		else:
 			print("Error disconnecting from DB. Perhaps it is already disconnected.")
-		print('Exitting')
+		print('Exiting')
