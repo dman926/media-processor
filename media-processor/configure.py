@@ -61,8 +61,20 @@ def command(commands: list[str]) -> bool:
 	return True
 
 if __name__ == '__main__':
+	class ServiceExit(Exception):
+		pass
+
+	def service_shutdown(signum, frame):
+		print(f'Caught signal {signum}')
+		raise ServiceExit
+
 	import argparse
+	import signal
+
 	from db import connect_to_db, create_tables, disconnect_from_db
+
+	# Attach interrupt handler to shutdown gracefully
+	signal.signal(signal.SIGINT, service_shutdown)
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-s', '--shell', dest='shell', help='the shell symbol to use', default='$ ')
 	args: argparse.Namespace = parser.parse_args()
@@ -76,24 +88,28 @@ if __name__ == '__main__':
 		exit(3)
 	print('Tables created if not exist.')
 	print('Starting shell.')
-	while True:
-		# Shell
-		c = input(args.shell)
-		commands.append(c)
-		if c == 'exit':
-			break
-		elif c == 'exec':
-			print('Executing commands.')
-			try:
-				if command(commands[:-1]):
-					print('All commands executed successfully.')
-				else:
-					print('Some commands did not execute successfully.')
-			except Exception as e:
-				print(f'Some commands did not execute successfully. [{e}] error occured')
-			commands: list[str] = []
-	if disconnect_from_db():
-		print("Successfully disconnected from DB.")
-	else:
-		print("Error disconnecting from DB. Perhaps it is already disconnected?")
-	print('Exiting')
+	try:
+		while True:
+			# Shell
+			c = input(args.shell)
+			commands.append(c)
+			if c == 'exit':
+				break
+			elif c == 'exec':
+				print('Executing commands.')
+				try:
+					if command(commands[:-1]):
+						print('All commands executed successfully.')
+					else:
+						print('Some commands did not execute successfully.')
+				except Exception as e:
+					print(f'Some commands did not execute successfully. [{e}] error occured')
+				commands: list[str] = []
+	except ServiceExit:
+		pass
+	finally:
+		if disconnect_from_db():
+			print("Successfully disconnected from DB.")
+		else:
+			print("Error disconnecting from DB. Perhaps it is already disconnected?")
+		print('Exiting')
