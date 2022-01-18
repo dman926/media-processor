@@ -2,8 +2,9 @@ import os
 from queue import Queue
 from subprocess import Popen, PIPE, SubprocessError
 import threading
-import time
 from typing import Iterable
+
+from db import conn
 
 processingQueue = Queue(0)
 e = threading.Event()
@@ -57,11 +58,11 @@ class ProcessorThread(threading.Thread):
 	def run(self):
 		print('Processor thread started.')
 		while not e.is_set():
-			if not os.path.exists(self.process_folder):
-				os.makedirs(self.process_folder)
 			if processingQueue.empty():
 				e.wait(timeout=5.0)
 			else:
+				if not os.path.exists(self.process_folder):
+					os.makedirs(self.process_folder)
 				item = processingQueue.get()
 				filename = os.path.basename(item)
 				ext = filename.rsplit('.', 1)[1]
