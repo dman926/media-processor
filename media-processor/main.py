@@ -78,9 +78,8 @@ if __name__ == '__main__':
 		kill()
 		for thread in threads:
 			thread.join()
-		print('Disconnected from DB.')
 		if disconnect_from_db():
 			print("Successfully disconnected from DB.")
 		else:
-			print("Error disconnecting from DB. Perhaps it is already disconnected.")
+			print("Error disconnecting from DB. Perhaps it is already disconnected?")
 		print('Exiting')

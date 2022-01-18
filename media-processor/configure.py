@@ -92,4 +92,8 @@ if __name__ == '__main__':
 			except Exception as e:
 				print(f'Some commands did not execute successfully. [{e}] error occured')
 			commands: list[str] = []
-	disconnect_from_db()
+	if disconnect_from_db():
+		print("Successfully disconnected from DB.")
+	else:
+		print("Error disconnecting from DB. Perhaps it is already disconnected?")
+	print('Exiting')
