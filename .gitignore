@@ -127,3 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Testing folders
+media-processor/watch
+media-processor/processing
