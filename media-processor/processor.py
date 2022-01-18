@@ -6,12 +6,11 @@ import time
 from typing import Iterable
 
 processingQueue = Queue(0)
-killFlag = False
+e = threading.Event()
 
 def kill() -> None:
 	'''Set flag to kill all threads'''
-	global killFlag
-	killFlag = True
+	e.set()
 
 def full_scan_dir(baseDir: str) -> Iterable[str]:
 	'''Recursively scan a dir to get all file absolute paths'''
@@ -27,16 +26,27 @@ class WatcherThread(threading.Thread):
 		threading.Thread.__init__(self)
 		self.watch_folder: str = watch_folder
 		self.sleep_time: float = sleep_time * 60
-		self.last_files: set[str] = {}
+		self.last_files: set[tuple] = set()
 
 	def run(self):
-		while not killFlag:
+		print('Watcher thread started.')
+		first_pass = True
+		while not e.is_set():
 			if not os.path.exists(self.watch_folder):
 				os.makedirs(self.watch_folder)
-			newScan: set[str] = {}
+			new_scan: set[tuple] = set()
 			for entry in full_scan_dir(self.watch_folder):
-				print(entry)
-			time.sleep(self.sleep_time)
+				stat = os.stat(entry)
+				ctime=stat.st_ctime
+				new_scan.add((entry, ctime))
+			if first_pass:
+				first_pass = False
+				self.last_files = new_scan
+			new_files = new_scan - self.last_files
+			for f in new_files:
+				processingQueue.put(f[0])
+			self.last_files = new_scan
+			e.wait(timeout=self.sleep_time)
 
 
 class ProcessorThread(threading.Thread):
@@ -45,13 +55,15 @@ class ProcessorThread(threading.Thread):
 		self.process_folder: str = process_folder
 
 	def run(self):
-		while not killFlag:
+		print('Processor thread started.')
+		while not e.is_set():
 			if not os.path.exists(self.process_folder):
 				os.makedirs(self.process_folder)
 			if processingQueue.empty():
-				time.sleep(5)
+				e.wait(timeout=5.0)
 			else:
 				item = processingQueue.get()
 				filename = os.path.basename(item)
 				ext = filename.rsplit('.', 1)[1]
 				filename = filename.rsplit('.', 1)[0]
+				print(item + ' | ' + filename + ' | ' + ext)
