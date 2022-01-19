@@ -1,5 +1,6 @@
 import os
 from queue import Queue
+import re
 from subprocess import Popen, PIPE, SubprocessError
 import threading
 from typing import Iterable
@@ -27,11 +28,22 @@ class WatcherThread(threading.Thread):
 		threading.Thread.__init__(self)
 		self.watch_folder: str = watch_folder
 		self.sleep_time: float = sleep_time * 60
+		# Initialize last_files.
 		self.last_files: set[tuple] = set()
+		for entry in full_scan_dir(self.watch_folder):
+			stat = os.stat(entry)
+			ctime=stat.st_ctime
+			self.last_files.add((entry, ctime))
 
-	def run(self):
+	def is_video(self, filename: str) -> bool:
+		'''Returns `True` if this is a video file. `False` otherwise.'''
+		return filename.rsplit('.', 1)[1].lower() in ['mp4', 'mkv', 'avi',
+			'webm' '264', 'mpeg', 'mpv', 'm2ts', '3gp2', 'flv' , 'mp4v',
+			'm4v', 'mts', 'mov', 'h264', 'hevc', 'h265', 'wmv']
+
+	def run(self) -> None:
+		'''Watcher thread main function.'''
 		print('Watcher thread started.')
-		first_pass = True
 		while not e.is_set():
 			if not os.path.exists(self.watch_folder):
 				os.makedirs(self.watch_folder)
@@ -40,12 +52,10 @@ class WatcherThread(threading.Thread):
 				stat = os.stat(entry)
 				ctime=stat.st_ctime
 				new_scan.add((entry, ctime))
-			if first_pass:
-				first_pass = False
-				self.last_files = new_scan
 			new_files = new_scan - self.last_files
 			for f in new_files:
-				processingQueue.put(f[0])
+				if self.is_video(f[0]):
+					processingQueue.put(f[0])
 			self.last_files = new_scan
 			e.wait(timeout=self.sleep_time)
 
@@ -55,7 +65,16 @@ class ProcessorThread(threading.Thread):
 		threading.Thread.__init__(self)
 		self.process_folder: str = process_folder
 
-	def run(self):
+	def clean_filename(self, filename: str) -> str:
+		'''
+		Remove substrings between (`[` and `]` or `(` or `)`), (`1080p` (p optional) or `720p` (p optional) or `bluray`) (case insensitive).
+		Replace `.` with ` `.
+		Strip leading or trailing spaces.
+		'''
+		return re.sub('\[.+?\]|\(.+?\)|(1080p?.*)|(720p?.*)|(bluray.*)/i', '', filename).replace('.', ' ').strip()
+
+	def run(self) -> None:
+		'''Processor thread main function'''
 		print('Processor thread started.')
 		while not e.is_set():
 			if processingQueue.empty():
@@ -66,5 +85,5 @@ class ProcessorThread(threading.Thread):
 				item = processingQueue.get()
 				filename = os.path.basename(item)
 				ext = filename.rsplit('.', 1)[1]
-				filename = filename.rsplit('.', 1)[0]
+				filename = self.clean_filename(filename.rsplit('.', 1)[0])
 				print(item + ' | ' + filename + ' | ' + ext)
