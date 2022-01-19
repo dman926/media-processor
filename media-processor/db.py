@@ -1,8 +1,9 @@
 import sqlite3
+from typing import Optional
 
 conn = None
 
-def get_conn():
+def get_conn() -> Optional[sqlite3.Connection]:
 	return conn
 
 def connect_to_db() -> bool:
@@ -17,8 +18,17 @@ def create_tables() -> bool:
 	if not conn:
 		return False
 	cur = conn.cursor()
-	cur.execute('''CREATE TABLE IF NOT EXISTS properties (property TEXT, PRIMARY KEY (property))''')
-	cur.execute('''CREATE TABLE IF NOT EXISTS patterns (property TEXT, pattern TEXT, PRIMARY KEY (property), FOREIGN KEY (property) REFERENCES properties(property));''')
+	cur.execute('''CREATE TABLE IF NOT EXISTS properties (
+		property TEXT,
+		pattern TEXT,
+		PRIMARY KEY (property)
+	);''')
+	cur.execute('''CREATE TABLE IF NOT EXISTS property_settings (
+		property TEXT,
+		ffmpeg_args TEXT,
+		PRIMARY KEY (property),
+		FOREIGN KEY (property) REFERENCES properties(property)		
+	);''')
 	conn.commit()
 	return True
 

@@ -5,7 +5,7 @@ from subprocess import Popen, PIPE, SubprocessError
 import threading
 from typing import Iterable
 
-from db import conn
+from db import get_conn
 
 processingQueue = Queue(0)
 e = threading.Event()
@@ -61,17 +61,18 @@ class WatcherThread(threading.Thread):
 
 
 class ProcessorThread(threading.Thread):
-	def __init__(self, process_folder: str):
+	def __init__(self, process_folder: str, clean_regex: str):
 		threading.Thread.__init__(self)
 		self.process_folder: str = process_folder
+		self.clean_regex = clean_regex
 
 	def clean_filename(self, filename: str) -> str:
 		'''
-		Remove substrings between (`[` and `]` or `(` or `)`), (`1080p` (p optional) or `720p` (p optional) or `bluray`) (case insensitive).
+		Remove substrings according to clean_regex.
 		Replace `.` with ` `.
 		Strip leading or trailing spaces.
 		'''
-		return re.sub('\[.+?\]|\(.+?\)|(1080p?.*)|(720p?.*)|(bluray.*)/i', '', filename).replace('.', ' ').strip()
+		return re.sub(self.clean_regex, '', filename).replace('.', ' ').strip()
 
 	def run(self) -> None:
 		'''Processor thread main function'''
@@ -86,4 +87,16 @@ class ProcessorThread(threading.Thread):
 				filename = os.path.basename(item)
 				ext = filename.rsplit('.', 1)[1]
 				filename = self.clean_filename(filename.rsplit('.', 1)[0])
-				print(item + ' | ' + filename + ' | ' + ext)
+				cur = get_conn()
+				if not cur:
+					continue
+				cur = cur.cursor()
+				cur.execute('''SELECT * FROM properties;''')
+				rows = cur.fetchall()
+				topMatch = None
+				for row in rows:
+					pass
+				if topMatch:
+					cur.execute('''SELECT ffmpeg_args FROM property_settings WHERE property = ?;''', (topMatch,))
+					args = cur.fetchone()['ffmpeg_args']
+				cur.close()

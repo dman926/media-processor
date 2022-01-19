@@ -4,7 +4,7 @@ import os
 import signal
 import threading
 
-from configure import command
+from configure import shell
 from db import connect_to_db, create_tables, disconnect_from_db
 from processor import WatcherThread, ProcessorThread, kill
 
@@ -31,6 +31,12 @@ if __name__ == '__main__':
 	parser.add_argument('-p', '--process', dest='process_folder', help='the directory to process media in (required)', type=dir_path, required=True)
 	parser.add_argument('-t', '--time-to-sleep', dest='sleep_time', help='how many minutes the watcher should wait before scanning again', type=float, default=0.5)
 	parser.add_argument('-s', '--shell', dest='shell', help='the shell symbol to use', default='$ ')
+	parser.add_argument('-r', '--clean-regex',
+		dest='clean_regex',
+		help='''the regex used to match and remove substrings from the filename before processing.
+			by default, any characters between parenthesis and brackets (including), 1080p (p optional), 720p (p optional), and bluray (case insensitive) are removed.''',
+		default='\[.+?\]|\(.+?\)|(1080p?.*)|(720p?.*)|(bluray.*)/i'
+	)
 	try:
 		args: argparse.Namespace = parser.parse_args()
 	except NotADirectoryError:
@@ -51,28 +57,15 @@ if __name__ == '__main__':
 		watcher = WatcherThread(args.watch_folder, args.sleep_time)
 		watcher.start()
 		threads.append(watcher)
-		processor = ProcessorThread(args.process_folder)
+		processor = ProcessorThread(args.process_folder, args.clean_regex)
 		processor.start()
 		threads.append(processor)
 
 		# Keep alive and collect user input
-		commands: list[str] = []
-		print('Starting shell.')
-		while True:
-			# Shell
-			c = input(args.shell)
-			commands.append(c)
-			if c == 'exec':
-				print('Executing commands.')
-				try:
-					if command(commands[:-1]):
-						print('All commands executed successfully.')
-					else:
-						print('Some commands did not execute successfully.')
-				except Exception as e:
-					print(f'Some commands did not execute successfully. [{e}] error occured')
-				commands: list[str] = []
+		shell(args.shell)
 	except ServiceExit:
+		pass
+	finally:
 		print('Shutting down threads.')
 		# Shutdown
 		kill()
