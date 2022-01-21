@@ -26,15 +26,19 @@ With virtual environment activated or python3 binary used directly:
 
 ## Available Shell Commands
 
+Commands are saved as a list and exececuted on the `exec` command.
+
+* `exec` - Execute commands.
+* `exit` - Exit the shell. Be aware that this will stop the program. `CTRL+C` will do the same thing.
 * `commit` - Commit transaction.
 * `vacuum` - Prune the DB to save space.
 * `add ...`
   * `property <PROPERTY>` - Add a property.
-  * `pattern <PROPERTY> <PATTERN>` - Add a regex pattern to a property for matching.
+  * `setting <PROPERTY> <FFMPEG ARGS> <OUTPUT CONTAINER> <DESTINATION FOLDER>` - Add processing settings to a property for matching.
 * `remove`
   * `property <PROPERTY>` - Remove a property.
-  * `pattern <PROPERTY>` - Remove a regex pattern from a property.
+  * `setting <PROPERTY>` - Remove processing settings from a property.
 * `reset`
   * `db` - Clear all data from the DB's tables.
   * `properties` - Clear all data from the `properties` table.
-  * `patterns` - Clear all data from the `patterns` table.
+  * `settings` - Clear all data from the `property_settings` table.

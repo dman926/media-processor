@@ -6,7 +6,7 @@ import threading
 
 from configure import shell
 from db import connect_to_db, create_tables, disconnect_from_db
-from processor import WatcherThread, ProcessorThread, kill
+import processor
 
 threads = []
 
@@ -54,12 +54,12 @@ if __name__ == '__main__':
 	print('Tables created if not exist.')
 	try:
 		# Spin up watcher and processor threads
-		watcher = WatcherThread(args.watch_folder, args.sleep_time)
-		watcher.start()
-		threads.append(watcher)
-		processor = ProcessorThread(args.process_folder, args.clean_regex)
-		processor.start()
-		threads.append(processor)
+		watcherThread = processor.WatcherThread(args.watch_folder, args.sleep_time)
+		watcherThread.start()
+		threads.append(watcherThread)
+		processorThread = processor.ProcessorThread(args.process_folder, args.clean_regex)
+		processorThread.start()
+		threads.append(processorThread)
 
 		# Keep alive and collect user input
 		shell(args.shell)
@@ -68,7 +68,7 @@ if __name__ == '__main__':
 	finally:
 		print('Shutting down threads.')
 		# Shutdown
-		kill()
+		processor.kill()
 		for thread in threads:
 			thread.join()
 		if disconnect_from_db():

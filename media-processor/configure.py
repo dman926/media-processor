@@ -30,7 +30,7 @@ def command(commands: list[str]) -> bool:
 				ffmpeg_args = split[3]
 				output_container = split[4]
 				folder = split[5]
-				print(f'Adding settings (ffmpeg_args: "{ffmpeg_args}") (output_container: "{output_container}") (folder: "{folder}") to property {property}')
+				print(f'Adding settings (ffmpeg_args: "{ffmpeg_args}") (output_container: "{output_container}") (destination folder: "{folder}") to property "{property}"')
 				cur.execute('''INSERT INTO property_settings (property, ffmpeg_args, output_container, folder) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE ffmpeg_args = ?, output_container = ?, folder = ?;''', (property, ffmpeg_args, output_container, folder, ffmpeg_args, output_container, folder))
 			else:
 				if not yn(f'[{split[1]}] is not a valid `add` command and it will be ignored. '):
@@ -55,7 +55,7 @@ def command(commands: list[str]) -> bool:
 			elif split[1] == 'properties':
 				print('Removing all data in `properties`.')
 				cur.execute('''DELETE FROM properties;''')
-			elif split[1] == 'patterns':
+			elif split[1] == 'settings':
 				print('Removing all data in `settings`.')
 				cur.execute('''DELETE FROM property_settings;''')
 		else:

@@ -9,11 +9,11 @@ from typing import Iterable
 from db import get_conn
 
 processingQueue = Queue(0)
-e = threading.Event()
+event = threading.Event()
 
 def kill() -> None:
 	'''Set flag to kill all threads'''
-	e.set()
+	event.set()
 
 def full_scan_dir(baseDir: str) -> Iterable[str]:
 	'''Recursively scan a dir to get all file absolute paths'''
@@ -45,7 +45,7 @@ class WatcherThread(threading.Thread):
 	def run(self) -> None:
 		'''Watcher thread main function.'''
 		print('Watcher thread started.')
-		while not e.is_set():
+		while not event.is_set():
 			if not os.path.exists(self.watch_folder):
 				os.makedirs(self.watch_folder)
 			new_scan: set[tuple] = set()
@@ -58,7 +58,7 @@ class WatcherThread(threading.Thread):
 				if self.is_video(f[0]):
 					processingQueue.put(f[0])
 			self.last_files = new_scan
-			e.wait(timeout=self.sleep_time)
+			event.wait(timeout=self.sleep_time)
 
 
 class ProcessorThread(threading.Thread):
@@ -78,9 +78,9 @@ class ProcessorThread(threading.Thread):
 	def run(self) -> None:
 		'''Processor thread main function'''
 		print('Processor thread started.')
-		while not e.is_set():
+		while not event.is_set():
 			if processingQueue.empty():
-				e.wait(timeout=5.0)
+				event.wait(timeout=5.0)
 			else:
 				cur = get_conn()
 				if not cur:
