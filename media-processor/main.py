@@ -21,11 +21,11 @@ def dir_path(path: str) -> str:
 class ServiceExit(Exception):
 	pass
 
-def service_shutdown(signum, frame):
-	print(f'Caught signal {signum}')
-	raise ServiceExit
-
 if __name__ == '__main__':
+	def service_shutdown(signum, frame):
+		print(f'\nCaught signal {signum}')
+		raise ServiceExit
+
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-w', '--watch', dest='watch_folder', help='the directory to watch for changes (required)', type=dir_path, required=True)
 	parser.add_argument('-p', '--process', dest='process_folder', help='the directory to process media in (required)', type=dir_path, required=True)

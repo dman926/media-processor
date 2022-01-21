@@ -20,12 +20,14 @@ def create_tables() -> bool:
 	cur = conn.cursor()
 	cur.execute('''CREATE TABLE IF NOT EXISTS properties (
 		property TEXT,
-		pattern TEXT,
+		pattern TEXT NOT NULL,
 		PRIMARY KEY (property)
 	);''')
 	cur.execute('''CREATE TABLE IF NOT EXISTS property_settings (
 		property TEXT,
-		ffmpeg_args TEXT,
+		ffmpeg_args TEXT NOT NULL,
+		output_container TEXT NOT NULL,
+		folder TEXT NOT NULL,
 		PRIMARY KEY (property),
 		FOREIGN KEY (property) REFERENCES properties(property)		
 	);''')

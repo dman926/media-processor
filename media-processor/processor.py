@@ -1,6 +1,7 @@
 import os
 from queue import Queue
 import re
+import shlex
 from subprocess import Popen, PIPE, SubprocessError
 import threading
 from typing import Iterable
@@ -81,15 +82,17 @@ class ProcessorThread(threading.Thread):
 			if processingQueue.empty():
 				e.wait(timeout=5.0)
 			else:
+				cur = get_conn()
+				if not cur:
+					print('\nCan\'t process pending queue: not connected to DB.')
+					continue
 				if not os.path.exists(self.process_folder):
 					os.makedirs(self.process_folder)
 				item = processingQueue.get()
-				filename = os.path.basename(item)
-				ext = filename.rsplit('.', 1)[1]
-				filename = self.clean_filename(filename.rsplit('.', 1)[0])
-				cur = get_conn()
-				if not cur:
-					continue
+				filename = os.path.basename(item).rsplit('.', 1)
+				ext = filename[1]
+				filename = self.clean_filename(filename[0])
+
 				cur = cur.cursor()
 				cur.execute('''SELECT * FROM properties;''')
 				rows = cur.fetchall()
@@ -97,6 +100,20 @@ class ProcessorThread(threading.Thread):
 				for row in rows:
 					pass
 				if topMatch:
-					cur.execute('''SELECT ffmpeg_args FROM property_settings WHERE property = ?;''', (topMatch,))
-					args = cur.fetchone()['ffmpeg_args']
+					cur.execute('''SELECT ffmpeg_args, output_container, folder FROM property_settings WHERE property = ?;''', (topMatch,))
+					row = cur.fetchone()
+					if row:
+						try:
+							args = [a.strip() for a in shlex.split(row['ffmpeg_args'])]
+							modifiers = ''
+							tmp_output_path = os.path.join(self.process_folder, filename + modifiers + '.' + row['output_container'])
+							s_args = ['ffmpeg', '-i', item, *args, f'{tmp_output_path}']
+							p = Popen(s_args)
+							if p.wait() != 0:
+								raise SubprocessError
+							os.replace(tmp_output_path, os.path.join(row['folder'], filename + modifiers + '.' + row["output_container"]))
+						except SubprocessError as e:
+							print(f'\nError executing command {s_args}: {e}')
+					else:
+						print(f'\nTried procesing {filename}.{ext}, but failed due to missing settings. Logging...')
 				cur.close()

@@ -12,7 +12,7 @@ def command(commands: list[str]) -> bool:
 		return False
 	cur = conn.cursor()
 	for c in commands:
-		split: list[str] = [c.strip() for c in shlex.split(c)]
+		split: list[str] = [a.strip() for a in shlex.split(c)]
 		if split[0] == 'commit':
 			print('Committing to DB.')
 			conn.commit()
@@ -23,13 +23,15 @@ def command(commands: list[str]) -> bool:
 			if split[1] == 'property':
 				property = split[2]
 				pattern = split[3]
-				print(f'Adding property {property}')
+				print(f'Adding property "{property}" with pattern "{pattern}"')
 				cur.execute('''INSERT INTO properties (property, pattern) VALUES (?, ?) ON DUPLICATE KEY UPDATE pattern = ?;''', (property, pattern, pattern))
 			elif split[1] == 'setting':
 				property = split[2]
 				ffmpeg_args = split[3]
-				print(f'Adding setting "{ffmpeg_args}" to property {property}')
-				cur.execute('''INSERT INTO property_settings (property, ffmpeg_args) VALUES (?, ?) ON DUPLICATE KEY UPDATE ffmpeg_args = ?;''', (property, ffmpeg_args, ffmpeg_args))
+				output_container = split[4]
+				folder = split[5]
+				print(f'Adding settings (ffmpeg_args: "{ffmpeg_args}") (output_container: "{output_container}") (folder: "{folder}") to property {property}')
+				cur.execute('''INSERT INTO property_settings (property, ffmpeg_args, output_container, folder) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE ffmpeg_args = ?, output_container = ?, folder = ?;''', (property, ffmpeg_args, output_container, folder, ffmpeg_args, output_container, folder))
 			else:
 				if not yn(f'[{split[1]}] is not a valid `add` command and it will be ignored. '):
 					break
