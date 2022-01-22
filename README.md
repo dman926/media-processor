@@ -10,7 +10,7 @@ This was made for my PleX server so I can easily set up rules to automate my wor
 
 * `thefuzz` (for fuzzy search)
 * `python-Levenshtein` (to speed up thefuzz)
-* `pysftp` (to sftp files to remote servers. Not technically needed if everything will be local)
+* `paramiko` (to sftp files to remote servers. Not technically needed if everything will be local)
 
 ## Install
 

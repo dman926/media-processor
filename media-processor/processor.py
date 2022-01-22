@@ -1,7 +1,5 @@
-from optparse import Option
 from thefuzz import fuzz
 import os
-from paramiko.ssh_exception import SSHException
 from queue import Queue
 import re
 import shlex
@@ -10,10 +8,11 @@ import threading
 from typing import Iterable, Optional
 
 try:
-	import pysftp
-	pysftp_ok = True
+	from paramiko import SSHClient, AutoAddPolicy
+	from paramiko.ssh_exception import SSHException
+	sftp_ok = True
 except ImportError:
-	pysftp_ok = False
+	sftp_ok = False
 
 from db import LockableSqliteConn
 
@@ -81,6 +80,11 @@ class ProcessorThread(threading.Thread):
 		self.private_key_pass: Optional[str] = private_key_pass
 		self.tid = tid
 		self.lconn = LockableSqliteConn('db.sqlite3')
+		self.ssh_client = SSHClient()
+		if self.known_hosts:
+			self.ssh_client.load_host_keys(self.known_hosts)
+		else:
+			self.ssh_client.set_missing_host_key_policy(AutoAddPolicy())
 
 	def clean_filename(self, filename: str) -> str:
 		'''
@@ -131,7 +135,7 @@ class ProcessorThread(threading.Thread):
 							raise SubprocessError
 						if not row[3]:
 							os.replace(tmp_output_path, os.path.join(row[2], topMatch + '.' + row[1]))
-						elif pysftp_ok:
+						elif sftp_ok:
 							sftp_user = row[3].split('@', 1)
 							sftp_host = sftp_user[1].split(':', 1)
 							if len(sftp_host) > 1:
@@ -140,22 +144,23 @@ class ProcessorThread(threading.Thread):
 								sftp_port = 22
 							sftp_host = sftp_host[0]
 							sftp_user = sftp_user[0]
-							if self.known_hosts:
-								cnopts = pysftp.CnOpts(knownhosts=self.known_hosts)
-							else:
-								cnopts = pysftp.CnOpts()
-								cnopts.hostkeys = None
 							try:
+								cpass = True
 								if not row[4] and self.private_key_loc:
-									sftp = pysftp.Connection(host=sftp_host, username=sftp_user, port=sftp_port, private_key=self.private_key_loc, private_key_pass=self.private_key_pass, cnopts=cnopts)
+									self.ssh_client.connect(hostname=sftp_host, username=sftp_user, port=sftp_port, key_filename=self.private_key_loc, passphrase=self.private_key_pass)
+								elif row[4]:
+									self.ssh_client.connect(hostname=sftp_host, username=sftp_user, password=row[4], port=sftp_port)
 								else:
-									sftp = pysftp.Connection(host=sftp_host, username=sftp_user, port=sftp_port, password=row[4], cnopts=cnopts)
-								with sftp:
-									with sftp.cd(row[2]):
-										sftp.put(tmp_output_path)
-										os.remove(tmp_output_path)
-							except (SSHException, AttributeError):
+									cpass = False
+								if cpass:
+									sftp = self.ssh_client.open_sftp()
+									sftp.put(tmp_output_path, os.path.join(row[2], topMatch + '.' + row[1]))
+									os.remove(tmp_output_path)
+								else:
+									print('Can\'t SFtp file to remote server. No ssh key or password given. File is processed, but will not be moved.')
+							except SSHException:
 								print('Can\'t SFTP file to remote server. Invalid host. Perhaps it isn\'t in the `known_hosts` file?. File is processed, but will not be moved.')
+							self.ssh_client.close()
 						else:
 							print('Can\'t SFTP file to remote server. `pysftp` not installed. File is processed, but will not be moved.')
 					except SubprocessError as e:
