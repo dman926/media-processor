@@ -21,7 +21,7 @@ def create_tables() -> bool:
 	cur.execute('''CREATE TABLE IF NOT EXISTS properties (
 		property TEXT,
 		pattern TEXT NOT NULL,
-		partial BOOLEAN,
+		partial INT(1),
 		PRIMARY KEY (property)
 	);''')
 	cur.execute('''CREATE TABLE IF NOT EXISTS property_settings (
