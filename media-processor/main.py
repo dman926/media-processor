@@ -29,12 +29,13 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-w', '--watch', dest='watch_folder', help='the directory to watch for changes (required)', type=dir_path, required=True)
 	parser.add_argument('-p', '--process', dest='process_folder', help='the directory to process media in (required)', type=dir_path, required=True)
+	parser.add_argument('-pt', '--processer-threads', dest='processor_threads', help='the number of processor threads. should be equal to the number of max transcodes at a time', type=int, default=1)
 	parser.add_argument('-t', '--time-to-sleep', dest='sleep_time', help='how many minutes the watcher should wait before scanning again', type=float, default=0.5)
 	parser.add_argument('-s', '--shell', dest='shell', help='the shell symbol to use', default='$ ')
 	parser.add_argument('-r', '--clean-regex',
 		dest='clean_regex',
 		help='''the regex used to match and remove substrings from the filename before processing.
-			by default, any characters between parenthesis and brackets (including), 1080p (p optional), 720p (p optional), and bluray (case insensitive) are removed.''',
+			by default, any characters between parenthesis and brackets (including) and any characters after 1080p (p optional), 720p (p optional), and bluray (case insensitive) are removed.''',
 		default='\[.+?\]|\(.+?\)|(1080p?.*)|(720p?.*)|(bluray.*)/i'
 	)
 	try:
@@ -57,9 +58,10 @@ if __name__ == '__main__':
 		watcherThread = processor.WatcherThread(args.watch_folder, args.sleep_time)
 		watcherThread.start()
 		threads.append(watcherThread)
-		processorThread = processor.ProcessorThread(args.process_folder, args.clean_regex)
-		processorThread.start()
-		threads.append(processorThread)
+		for i in range(args.processor_threads):
+			processorThread = processor.ProcessorThread(args.process_folder, args.clean_regex, i + 1)
+			processorThread.start()
+			threads.append(processorThread)
 
 		# Keep alive and collect user input
 		shell(args.shell)

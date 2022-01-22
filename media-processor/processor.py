@@ -1,3 +1,4 @@
+from thefuzz import fuzz
 import os
 from queue import Queue
 import re
@@ -8,8 +9,9 @@ from typing import Iterable
 
 from db import get_conn
 
-processingQueue = Queue(0)
+processing_queue = Queue(0)
 event = threading.Event()
+processing_lock = threading.Lock()
 
 def kill() -> None:
 	'''Set flag to kill all threads'''
@@ -56,16 +58,17 @@ class WatcherThread(threading.Thread):
 			new_files = new_scan - self.last_files
 			for f in new_files:
 				if self.is_video(f[0]):
-					processingQueue.put(f[0])
+					processing_queue.put(f[0])
 			self.last_files = new_scan
 			event.wait(timeout=self.sleep_time)
 
 
 class ProcessorThread(threading.Thread):
-	def __init__(self, process_folder: str, clean_regex: str):
+	def __init__(self, process_folder: str, clean_regex: str, tid: int):
 		threading.Thread.__init__(self)
 		self.process_folder: str = process_folder
 		self.clean_regex = clean_regex
+		self.tid = tid
 
 	def clean_filename(self, filename: str) -> str:
 		'''
@@ -77,18 +80,20 @@ class ProcessorThread(threading.Thread):
 
 	def run(self) -> None:
 		'''Processor thread main function'''
-		print('Processor thread started.')
+		print(f'Processor thread {self.tid} started.')
 		while not event.is_set():
-			if processingQueue.empty():
+			if processing_queue.empty():
 				event.wait(timeout=5.0)
 			else:
 				cur = get_conn()
 				if not cur:
+					# TODO: replace with logging
 					print('\nCan\'t process pending queue: not connected to DB.')
 					continue
 				if not os.path.exists(self.process_folder):
 					os.makedirs(self.process_folder)
-				item = processingQueue.get()
+				with processing_lock:
+					item = processing_queue.get()
 				filename = os.path.basename(item).rsplit('.', 1)
 				ext = filename[1]
 				filename = self.clean_filename(filename[0])
@@ -97,8 +102,11 @@ class ProcessorThread(threading.Thread):
 				cur.execute('''SELECT * FROM properties;''')
 				rows = cur.fetchall()
 				topMatch = None
+				topScore = -1
 				for row in rows:
-					pass
+					score = fuzz.ratio(row['property'])
+					if score > topScore:
+						topMatch = row['property']
 				if topMatch:
 					cur.execute('''SELECT ffmpeg_args, output_container, folder FROM property_settings WHERE property = ?;''', (topMatch,))
 					row = cur.fetchone()
@@ -113,7 +121,9 @@ class ProcessorThread(threading.Thread):
 								raise SubprocessError
 							os.replace(tmp_output_path, os.path.join(row['folder'], filename + modifiers + '.' + row["output_container"]))
 						except SubprocessError as e:
+							# TODO: replace with logging
 							print(f'\nError executing command {s_args}: {e}')
 					else:
+						# TODO: replace with logging
 						print(f'\nTried procesing {filename}.{ext}, but failed due to missing settings. Logging...')
 				cur.close()
