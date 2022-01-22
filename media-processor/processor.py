@@ -7,7 +7,13 @@ from subprocess import Popen, PIPE, SubprocessError
 import threading
 from typing import Iterable
 
-from db import get_conn
+try:
+	import pysftp
+	pysftp_ok = True
+except ImportError:
+	pysftp_ok = False
+
+from db import LockableSqliteConn
 
 processing_queue = Queue(0)
 event = threading.Event()
@@ -41,7 +47,7 @@ class WatcherThread(threading.Thread):
 	def is_video(self, filename: str) -> bool:
 		'''Returns `True` if this is a video file. `False` otherwise.'''
 		return filename.rsplit('.', 1)[1].lower() in ['mp4', 'mkv', 'avi',
-			'webm' '264', 'mpeg', 'mpv', 'm2ts', '3gp2', 'flv' , 'mp4v',
+			'webm', '264', 'mpeg', 'mpv', 'm2ts', '3gp2', 'flv', 'mp4v',
 			'm4v', 'mts', 'mov', 'h264', 'hevc', 'h265', 'wmv']
 
 	def run(self) -> None:
@@ -69,14 +75,15 @@ class ProcessorThread(threading.Thread):
 		self.process_folder: str = process_folder
 		self.clean_regex = clean_regex
 		self.tid = tid
+		self.lconn = LockableSqliteConn('db.sqlite3')
 
 	def clean_filename(self, filename: str) -> str:
 		'''
 		Remove substrings according to clean_regex.
-		Replace `.` with ` `.
+		Replace `.` and `_` with ` `.
 		Strip leading or trailing spaces.
 		'''
-		return re.sub(self.clean_regex, '', filename).replace('.', ' ').strip()
+		return re.sub(self.clean_regex, '', filename).replace('.', ' ').replace('_', ' ').strip()
 
 	def run(self) -> None:
 		'''Processor thread main function'''
@@ -85,11 +92,6 @@ class ProcessorThread(threading.Thread):
 			if processing_queue.empty():
 				event.wait(timeout=5.0)
 			else:
-				cur = get_conn()
-				if not cur:
-					# TODO: replace with logging
-					print('\nCan\'t process pending queue: not connected to DB.')
-					continue
 				if not os.path.exists(self.process_folder):
 					os.makedirs(self.process_folder)
 				with processing_lock:
@@ -98,35 +100,43 @@ class ProcessorThread(threading.Thread):
 				ext = filename[1]
 				filename = self.clean_filename(filename[0])
 
-				cur = cur.cursor()
-				cur.execute('''SELECT * FROM properties;''')
-				rows = cur.fetchall()
-				topMatch = None
-				topScore = -1
-				for row in rows:
-					if row['partial']:
-						score = fuzz.partial_ratio(filename, row['pattern'])
-					else:
-						score = fuzz.ratio(filename, row['pattern'])
-					if score > topScore:
-						topMatch = row['property']
-				if topMatch:
-					cur.execute('''SELECT ffmpeg_args, output_container, folder FROM property_settings WHERE property = ?;''', (topMatch,))
-					row = cur.fetchone()
-					if row:
-						try:
-							args = [a.strip() for a in shlex.split(row['ffmpeg_args'])]
-							modifiers = ''
-							tmp_output_path = os.path.join(self.process_folder, filename + modifiers + '.' + row['output_container'])
-							s_args = ['ffmpeg', '-i', item, *args, f'{tmp_output_path}']
-							p = Popen(s_args)
-							if p.wait() != 0:
-								raise SubprocessError
-							os.replace(tmp_output_path, os.path.join(row['folder'], filename + modifiers + '.' + row["output_container"]))
-						except SubprocessError as e:
-							# TODO: replace with logging
-							print(f'\nError executing command {s_args}: {e}')
-					else:
+				row = None
+				with self.lconn:
+					self.lconn.cur.execute('''SELECT property, pattern, partial FROM properties;''')
+					rows = self.lconn.cur.fetchall()
+					topMatch = None
+					topScore = -1
+					for prow in rows:
+						if prow[2]:
+							score = fuzz.partial_ratio(filename, prow[1])
+						else:
+							score = fuzz.ratio(filename, prow[1])
+						if score > 40 and score > topScore:
+							topMatch = prow[0]
+					if topMatch:
+						self.lconn.cur.execute('''SELECT ps.ffmpeg_args, ps.output_container, ps.folder, ds.user_at_ip, ds.password FROM property_settings ps JOIN destination_servers ds ON ps.user_at_ip = ds.user_at_ip WHERE property = ?;''', (topMatch,))
+						row = self.lconn.cur.fetchone()
+				if row:
+					try:
+						args = [a.strip() for a in shlex.split(row[0])]
+						modifiers = ''
+						tmp_output_path = os.path.join(self.process_folder, filename + modifiers + '.' + row[1])
+						s_args = ['ffmpeg', '-i', item, *args, f'{tmp_output_path}']
+						p = Popen(s_args)
+						if p.wait() != 0:
+							raise SubprocessError
+						if not row[3]:
+							os.replace(tmp_output_path, os.path.join(row[2], filename + modifiers + '.' + row[1]))
+						elif pysftp_ok:
+							pass
+							'''
+							with pysftp.Connection() as sftp:
+							'''
+						else:
+							print('Can\'t SFTP file to remote server. `pysftp` not installed. File is processed, but will not be moved.')
+					except SubprocessError as e:
 						# TODO: replace with logging
-						print(f'\nTried procesing {filename}.{ext}, but failed due to missing settings. Logging...')
-				cur.close()
+						print(f'\nError executing command {s_args}: {e}')
+				else:
+					# TODO: replace with logging
+					print(f'\nTried procesing {filename}.{ext}, but failed due to missing settings. Logging...')

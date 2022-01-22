@@ -1,11 +1,9 @@
-import asyncio
 import argparse
 import os
 import signal
-import threading
 
 from configure import shell
-from db import connect_to_db, create_tables, disconnect_from_db
+from db import LockableSqliteConn
 import processor
 
 threads = []
@@ -45,13 +43,36 @@ if __name__ == '__main__':
 		exit(1)
 	# Attach interrupt handler to shutdown threads gracefully
 	signal.signal(signal.SIGINT, service_shutdown)
-	if not connect_to_db():
-		print('Something went wrong connecting to the DB. Exiting. (Error 2)')
+	lconn = LockableSqliteConn('db.sqlite3')
+	try:
+		with lconn:
+			lconn.cur.execute('''CREATE TABLE IF NOT EXISTS properties (
+				property TEXT,
+				pattern TEXT NOT NULL,
+				partial INT(1),
+				PRIMARY KEY (property)
+			);''')
+			lconn.cur.execute('''CREATE TABLE IF NOT EXISTS property_settings (
+				property TEXT,
+				ffmpeg_args TEXT NOT NULL,
+				output_container TEXT NOT NULL,
+				user_at_ip TEXT,
+				folder TEXT NOT NULL,
+				PRIMARY KEY (property),
+				FOREIGN KEY (property) REFERENCES properties(property),
+				FOREIGN KEY (user_at_ip) REFERENCES destination_servers(user_at_ip)
+			);''')
+			lconn.cur.execute('''CREATE TABLE IF NOT EXISTS destination_servers (
+				user_at_ip TEXT,
+				password TEXT,
+				PRIMARY KEY (user_at_ip)	
+			);''')
+			lconn.conn.commit()
+	except Exception as e:
+		print(e)
+		print('There was an error connecting to `db.sqlite3` or creating tables. Exiting. (Error 2)')
 		exit(2)
-	print('Connected to DB.')
-	if not create_tables():
-		print('Something went wrong creating DB tables. Exiting. (Error 3)')
-		exit(3)
+	del lconn
 	print('Tables created if not exist.')
 	try:
 		# Spin up watcher and processor threads
@@ -73,8 +94,4 @@ if __name__ == '__main__':
 		processor.kill()
 		for thread in threads:
 			thread.join()
-		if disconnect_from_db():
-			print("Successfully disconnected from DB.")
-		else:
-			print("Error disconnecting from DB. Perhaps it is already disconnected?")
 		print('Exiting')
