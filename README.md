@@ -30,16 +30,20 @@ With virtual environment activated or python3 binary used directly:
 Commands are saved as a list and exececuted on the `exec` command.
 
 * `exec` - Execute commands.
+* `wipe` - Wipe (reset) transaction.
 * `exit` - Exit the shell. Be aware that this will stop the program. `CTRL+C` will do the same thing.
 * `commit` - Commit transaction.
 * `vacuum` - Prune the DB to save space.
 * `add ...`
   * `property <PROPERTY>` - Add a property.
-  * `setting <PROPERTY> <FFMPEG ARGS> <OUTPUT CONTAINER> <DESTINATION FOLDER>` - Add processing settings to a property for matching.
+  * `setting <PROPERTY> <FFMPEG ARGS> <OUTPUT CONTAINER> <DESTINATION FOLDER> <DESTINATION SERVER (user@ip:port (port optional)) (optional)>` - Add processing settings to a property for matching.
+  * `destination <user@ip:port (port optional)> <PASSWORD (optional if using ssh keys)>` - Add a destination server.
 * `remove`
   * `property <PROPERTY>` - Remove a property.
   * `setting <PROPERTY>` - Remove processing settings from a property.
-* `reset`
+  * `destination <user@ip:port (port optional)>` - Remove a destination server.
+* `reset` (all except `db` do not clear any foreign key references (might change later))
   * `db` - Clear all data from the DB's tables.
   * `properties` - Clear all data from the `properties` table.
   * `settings` - Clear all data from the `property_settings` table.
+  * `destinations` - Clear all data from the `destinations` table.

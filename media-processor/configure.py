@@ -98,13 +98,13 @@ def shell(symbol: str):
 			commands.append(c)
 			if c == 'exit':
 				break
+			elif c == 'wipe':
+				print('Wiping transaction.')
+				commands: list[str] = []
 			elif c == 'exec':
 				print('Executing commands.')
 				try:
-					if command(commands[:-1]):
-						print('All commands executed successfully.')
-					else:
-						print('Some commands did not execute successfully.')
+					command(commands[:-1])
 				except Exception as e:
 					print(f'Some commands did not execute successfully. [{e}] error occured')
 				commands: list[str] = []
