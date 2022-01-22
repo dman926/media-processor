@@ -104,7 +104,10 @@ class ProcessorThread(threading.Thread):
 				topMatch = None
 				topScore = -1
 				for row in rows:
-					score = fuzz.ratio(filename, row['property'])
+					if row['partial']:
+						score = fuzz.partial_ratio(filename, row['pattern'])
+					else:
+						score = fuzz.ratio(filename, row['pattern'])
 					if score > topScore:
 						topMatch = row['property']
 				if topMatch:

@@ -23,8 +23,12 @@ def command(commands: list[str]) -> bool:
 			if split[1] == 'property':
 				property = split[2]
 				pattern = split[3]
-				print(f'Adding property "{property}" with pattern "{pattern}"')
-				cur.execute('''INSERT INTO properties (property, pattern) VALUES (?, ?) ON DUPLICATE KEY UPDATE pattern = ?;''', (property, pattern, pattern))
+				if len(split) > 4:
+					partial = 1
+				else:
+					partial = 0
+				print(f'Adding property "{property}" with pattern "{pattern}" and partial "{partial != 0}"')
+				cur.execute('''INSERT INTO properties (property, pattern, partial) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE pattern = ?, partial = ?;''', (property, pattern, partial, pattern, partial))
 			elif split[1] == 'setting':
 				property = split[2]
 				ffmpeg_args = split[3]
