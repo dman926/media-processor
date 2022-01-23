@@ -1,7 +1,9 @@
 import argparse
 import logging
 import os
+import re
 import signal
+from typing import Pattern
 
 from configure import shell
 from db import LockableSqliteConn
@@ -27,6 +29,32 @@ def dir_file(path: str) -> str:
 		return path
 	raise FileNotFoundError(path)
 
+def compile_regex(regex: str) -> Pattern[str]:
+	flags = 0
+	reversed_regex = regex[::-1]
+	end = None
+	for i in range(0, len(reversed_regex), 2):
+		if reversed_regex[i + 1] != '/':
+			if i > 0:
+				end = i * -1
+			break
+		if reversed_regex[i] == 'a':
+			flags |= re.A
+		elif reversed_regex[i] == 'i':
+			flags |= re.I
+		elif reversed_regex[i] == 'm':
+			flags |= re.M
+		elif reversed_regex[i] == 's':
+			flags |= re.S
+		elif reversed_regex[i] == 'x':
+			flags |= re.X
+		elif reversed_regex[i] == 'l':
+			flags |= re.L
+	if end == None:
+		return re.compile(regex, flags=0)
+	else:
+		return re.compile(regex[:end], flags=flags)
+
 class ServiceExit(Exception):
 	pass
 
@@ -50,11 +78,26 @@ if __name__ == '__main__':
 	parser.add_argument('-pkp', '--private-key-pass', dest='private_key_pass', help='the ssh private key password')
 	parser.add_argument('-s', '--shell', dest='shell', help='the shell symbol to use', default='$ ')
 	parser.add_argument('-ds', '--disable-shell', dest='disable_shell', help='use to disable the shell', action='store_true')
-	parser.add_argument('-r', '--clean-regex',
+	parser.add_argument('-cr', '--clean-regex',
 		dest='clean_regex',
 		help='''the regex used to match and remove substrings from the filename before processing.
 			by default, any characters between parenthesis and brackets (including) and any characters after 1080p (p optional), 720p (p optional), and bluray (case insensitive) are removed.''',
-		default='\[.+?\]|\(.+?\)|(1080p?.*)|(720p?.*)|(bluray.*)/i'
+		default='\[.+?\]|\(.+?\)|(1080p?.*)|(720p?.*)|(bluray.*)/i',
+		type=compile_regex
+	)
+	parser.add_argument('-ser', '--season-episode-regex',
+		dest='season_episode_regex',
+		help='''the regex used to get substrings from the filename to figure out season and episode number.
+			by default, s<SEASON NUMBER>e<EPISODE NUMBER>, season <SEASON NUMBER> (space optional), and episode <EPISODE NUMBER> (space optional) (case insensitive) are matched.''',
+		default='(s(\d+)e(\d+))|(season ?(\d+))|(episode ?(\d+))',
+		type=compile_regex
+	)
+	parser.add_argument('-er', '--episode-regex',
+		dest='episode_regex',
+		help='''the regex used to get substrings from the filename to figure episode number. Used if `-ser` fails.
+			by default, "- <EPISODE NUMBER>" (space optional) and e<EPISODE NUMBER (at least two characters)> (case insensitive) are matched.''',
+		default='((- ?)(\d+))|(e(\d{2,}))/i',
+		type=compile_regex
 	)
 	try:
 		args: argparse.Namespace = parser.parse_args()
@@ -81,6 +124,8 @@ if __name__ == '__main__':
 				output_container TEXT NOT NULL,
 				user_at_ip TEXT,
 				folder TEXT NOT NULL,
+				is_show INT(1),
+				season_override INT(2),
 				PRIMARY KEY (property),
 				FOREIGN KEY (property) REFERENCES properties(property),
 				FOREIGN KEY (user_at_ip) REFERENCES destination_servers(user_at_ip)
@@ -103,7 +148,7 @@ if __name__ == '__main__':
 		watcherThread.start()
 		threads.append(watcherThread)
 		for i in range(args.processor_threads):
-			processorThread = processor.ProcessorThread(args.process_folder, args.clean_regex, args.known_hosts, args.private_key_loc, args.private_key_pass, i + 1)
+			processorThread = processor.ProcessorThread(args.process_folder, args.clean_regex, args.season_episode_regex, args.episode_regex, args.known_hosts, args.private_key_loc, args.private_key_pass, i + 1)
 			processorThread.start()
 			threads.append(processorThread)
 

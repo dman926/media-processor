@@ -6,7 +6,7 @@ import shlex
 from subprocess import Popen, PIPE, SubprocessError
 from thefuzz import fuzz
 import threading
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Pattern
 
 try:
 	from paramiko import SSHClient, AutoAddPolicy
@@ -75,10 +75,12 @@ class WatcherThread(threading.Thread):
 
 
 class ProcessorThread(threading.Thread):
-	def __init__(self, process_folder: str, clean_regex: str, known_hosts: Optional[str], private_key_loc: Optional[str], private_key_pass: Optional[str], tid: int):
+	def __init__(self, process_folder: str, clean_regex: Pattern[str], season_episode_regex: Pattern[str], episode_regex: Pattern[str], known_hosts: Optional[str], private_key_loc: Optional[str], private_key_pass: Optional[str], tid: int):
 		threading.Thread.__init__(self)
 		self.process_folder: str = process_folder
-		self.clean_regex: str = clean_regex
+		self.clean_regex: Pattern[str] = clean_regex
+		self.season_episode_regex: Pattern[str] = season_episode_regex
+		self.episode_regex: Pattern[str] = episode_regex
 		self.known_hosts: Optional[str] = known_hosts
 		self.private_key_loc: Optional[str] = private_key_loc
 		self.private_key_pass: Optional[str] = private_key_pass
@@ -128,18 +130,40 @@ class ProcessorThread(threading.Thread):
 						if score > 40 and score > topScore:
 							topMatch = prow[0]
 					if topMatch:
-						self.lconn.cur.execute('''SELECT ps.ffmpeg_args, ps.output_container, ps.folder, ds.user_at_ip, ds.password FROM property_settings ps JOIN destination_servers ds ON ps.user_at_ip = ds.user_at_ip WHERE property = ?;''', (topMatch,))
+						self.lconn.cur.execute('''SELECT ps.ffmpeg_args, ps.output_container, ps.folder, ds.user_at_ip, ds.password, ps.is_show, ps.season_override FROM property_settings ps JOIN destination_servers ds ON ps.user_at_ip = ds.user_at_ip WHERE property = ?;''', (topMatch,))
 						row = self.lconn.cur.fetchone()
+						if not row:
+							self.lconn.cur.execute('''SELECT ps.ffmpeg_args, ps.output_container, ps.folder, ps.is_show, ps.season_override FROM property_settings ps WHERE property = ?;''', (topMatch,))
+							row = self.lconn.cur.fetchone()
+							if row:
+								# hacky way to get around not having a destination server
+								row = list(row)
+								row.insert(3, None)
+								row.insert(4, None)
+								row = tuple(row)
 				if row:
 					try:
 						args = [a.strip() for a in shlex.split(row[0])]
-						tmp_output_path = os.path.join(self.process_folder, topMatch + '.' + row[1])
+						modifiers = ''
+						if row[5]:
+							# is show
+							season_episode = re.search(self.season_episode_regex, filename)
+							if season_episode:
+								modifiers = f' {season_episode.group().upper()}'
+							elif row[6] != None:
+								print(self.episode_regex)
+								print(filename)
+								season_episode = re.search(self.episode_regex, filename)
+								print(season_episode.group())
+								if season_episode:
+									modifiers = f' S{int(row[6]):02}E{int(season_episode.group().replace(" ", "").replace("-", "").replace("e", "")):02}'
+						tmp_output_path = os.path.join(self.process_folder, topMatch + modifiers + '.' + row[1])
 						s_args = ['ffmpeg', '-y', '-i', item, *args, '-v', 'quiet', f'{tmp_output_path}']
 						p = Popen(s_args)
 						if p.wait() != 0:
 							raise SubprocessError
 						if not row[3]:
-							os.replace(tmp_output_path, os.path.join(row[2], topMatch + '.' + row[1]))
+							os.replace(tmp_output_path, os.path.join(row[2], topMatch + modifiers + '.' + row[1]))
 						elif sftp_ok:
 							sftp_user = row[3].split('@', 1)
 							sftp_host = sftp_user[1].split(':', 1)
@@ -159,7 +183,7 @@ class ProcessorThread(threading.Thread):
 									cpass = False
 								if cpass:
 									sftp = self.ssh_client.open_sftp()
-									sftp.put(tmp_output_path, os.path.join(row[2], topMatch + '.' + row[1]))
+									sftp.put(tmp_output_path, os.path.join(row[2], topMatch + modifiers + '.' + row[1]))
 									os.remove(tmp_output_path)
 								else:
 									logger.warn('Can\'t SFTP file to remote server. No ssh key or password given. File is processed, but will not be moved.')
