@@ -38,11 +38,11 @@ Commands are saved as a list and exececuted on the `exec` command.
   * `property <PROPERTY>` - Add a property.
   * `setting <PROPERTY> <FFMPEG ARGS> <OUTPUT CONTAINER> <DESTINATION FOLDER> <DESTINATION SERVER (user@ip:port (port optional)) (optional)>` - Add processing settings to a property for matching.
   * `destination <user@ip:port (port optional)> <PASSWORD (optional if using ssh keys)>` - Add a destination server.
-* `remove`
+* `remove ...`
   * `property <PROPERTY>` - Remove a property.
   * `setting <PROPERTY>` - Remove processing settings from a property.
   * `destination <user@ip:port (port optional)>` - Remove a destination server.
-* `reset` (all except `db` do not clear any foreign key references (might change later))
+* `reset ...` (all except `db` do not clear any foreign key references (might change later))
   * `db` - Clear all data from the DB's tables.
   * `properties` - Clear all data from the `properties` table.
   * `settings` - Clear all data from the `property_settings` table.

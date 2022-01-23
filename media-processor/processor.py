@@ -1,9 +1,10 @@
-from thefuzz import fuzz
+import logging
 import os
 from queue import Queue
 import re
 import shlex
 from subprocess import Popen, PIPE, SubprocessError
+from thefuzz import fuzz
 import threading
 from typing import Iterable, Optional
 
@@ -15,6 +16,8 @@ except ImportError:
 	sftp_ok = False
 
 from db import LockableSqliteConn
+
+logger = logging.getLogger(__name__)
 
 processing_queue = Queue(0)
 event = threading.Event()
@@ -38,6 +41,7 @@ class WatcherThread(threading.Thread):
 		threading.Thread.__init__(self)
 		self.watch_folder: str = watch_folder
 		self.sleep_time: float = sleep_time * 60
+		self.name = 'Watcher Thread'
 		# Initialize last_files.
 		self.last_files: set[tuple] = set()
 		for entry in full_scan_dir(self.watch_folder):
@@ -79,6 +83,7 @@ class ProcessorThread(threading.Thread):
 		self.private_key_loc: Optional[str] = private_key_loc
 		self.private_key_pass: Optional[str] = private_key_pass
 		self.tid = tid
+		self.name = f'Processor Thread {tid}'
 		self.lconn = LockableSqliteConn('db.sqlite3')
 		self.ssh_client = SSHClient()
 		if self.known_hosts:
@@ -129,7 +134,7 @@ class ProcessorThread(threading.Thread):
 					try:
 						args = [a.strip() for a in shlex.split(row[0])]
 						tmp_output_path = os.path.join(self.process_folder, topMatch + '.' + row[1])
-						s_args = ['ffmpeg', '-y', '-i', item, *args, f'{tmp_output_path}']
+						s_args = ['ffmpeg', '-y', '-i', item, *args, '-v', 'quiet', f'{tmp_output_path}']
 						p = Popen(s_args)
 						if p.wait() != 0:
 							raise SubprocessError
@@ -157,15 +162,13 @@ class ProcessorThread(threading.Thread):
 									sftp.put(tmp_output_path, os.path.join(row[2], topMatch + '.' + row[1]))
 									os.remove(tmp_output_path)
 								else:
-									print('Can\'t SFtp file to remote server. No ssh key or password given. File is processed, but will not be moved.')
+									logger.warn('Can\'t SFTP file to remote server. No ssh key or password given. File is processed, but will not be moved.')
 							except SSHException:
-								print('Can\'t SFTP file to remote server. Invalid host. Perhaps it isn\'t in the `known_hosts` file?. File is processed, but will not be moved.')
+								logger.warn('Can\'t SFTP file to remote server. Invalid host. Perhaps it isn\'t in the `known_hosts` file?. File is processed, but will not be moved.')
 							self.ssh_client.close()
 						else:
-							print('Can\'t SFTP file to remote server. `pysftp` not installed. File is processed, but will not be moved.')
+							logger.warn('Can\'t SFTP file to remote server. `paramiko` not installed. File is processed, but will not be moved.')
 					except SubprocessError as e:
-						# TODO: replace with logging
-						print(f'\nError executing command {s_args}: {e}')
+						logger.error(f'\nError executing command {s_args}: {e}')
 				else:
-					# TODO: replace with logging
-					print(f'\nTried procesing {filename}.{ext}, but failed due to missing settings. Logging...')
+					logger.warn(f'\nTried procesing {filename}.{ext}, but failed due to missing settings.')

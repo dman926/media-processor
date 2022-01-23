@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 import signal
 
@@ -7,6 +8,8 @@ from db import LockableSqliteConn
 import processor
 
 threads = []
+
+logging.basicConfig(filename='log.log', encoding='utf-8', format='%(levelname)s | %(asctime)s | %(threadName)s | %(message)s', level=logging.INFO)
 
 def dir_path(path: str) -> str:
 	'''Return the full path if it is a directory. Raise a `NotADirectoryError` otherwise'''
@@ -35,6 +38,8 @@ if __name__ == '__main__':
 	# Attach interrupt handler to shutdown threads gracefully
 	signal.signal(signal.SIGINT, service_shutdown)
 
+	logger = logging.getLogger(__name__)
+
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-w', '--watch', dest='watch_folder', help='the directory to watch for changes (required)', type=dir_path, required=True)
 	parser.add_argument('-p', '--process', dest='process_folder', help='the directory to process media in (required)', type=dir_path, required=True)
@@ -44,6 +49,7 @@ if __name__ == '__main__':
 	parser.add_argument('-pkl', '--private-key_loc', dest='private_key_loc', help='location of a ssh private key to use for sftp', type=dir_file)
 	parser.add_argument('-pkp', '--private-key-pass', dest='private_key_pass', help='the ssh private key password')
 	parser.add_argument('-s', '--shell', dest='shell', help='the shell symbol to use', default='$ ')
+	parser.add_argument('-ds', '--disable-shell', dest='disable_shell', help='use to disable the shell', action='store_true')
 	parser.add_argument('-r', '--clean-regex',
 		dest='clean_regex',
 		help='''the regex used to match and remove substrings from the filename before processing.
@@ -54,9 +60,11 @@ if __name__ == '__main__':
 		args: argparse.Namespace = parser.parse_args()
 	except NotADirectoryError:
 		print('One of the supplied directories is malformed or does not exist. Exiting. (Error 1)')
+		logger.error('Exiting with code 1')
 		exit(1)
 	except FileNotFoundError:
 		print('The supplied known hosts file or private key location does not exist. Exiting. (Error 2)')
+		logger.error('Exiting with code 2')
 		exit(2)
 	lconn = LockableSqliteConn('db.sqlite3')
 	try:
@@ -85,6 +93,7 @@ if __name__ == '__main__':
 			lconn.conn.commit()
 	except Exception:
 		print('There was an error connecting to `db.sqlite3` or creating tables. Exiting. (Error 3)')
+		logger.error('Exiting with code 3')
 		exit(3)
 	del lconn
 	print('Tables created if not exist.')
@@ -98,8 +107,12 @@ if __name__ == '__main__':
 			processorThread.start()
 			threads.append(processorThread)
 
-		# Keep alive and collect user input
-		shell(args.shell)
+		# Keep alive and maybe collect user input
+		if args.disable_shell:
+			print('Shell disabled. Waiting.')
+			watcherThread.join()
+		else:
+			shell(args.shell)
 	except ServiceExit:
 		pass
 	finally:

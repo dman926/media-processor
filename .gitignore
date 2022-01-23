@@ -131,3 +131,6 @@ dmypy.json
 # Testing folders
 media-processor/watch
 media-processor/processing
+
+# Log file
+media-processor/log.log
