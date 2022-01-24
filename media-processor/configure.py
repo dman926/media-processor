@@ -137,7 +137,7 @@ if __name__ == '__main__':
 	logger = logging.getLogger(__name__)
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-ds', '--disable-shell', dest='disable_shell', help='use to disable the shell', action='store_true')
+	parser.add_argument('-g', '--gui', dest='use_gui', help='use the gui instead of the shell', action='store_true')
 	parser.add_argument('-s', '--shell', dest='shell', help='the shell symbol to use', default='$ ')
 	args: argparse.Namespace = parser.parse_args()
 	lconn = LockableSqliteConn('db.sqlite3')
@@ -149,9 +149,9 @@ if __name__ == '__main__':
 		exit(3)
 	print('Tables created if not exist.')
 	try:
-		if args.disable_shell:
+		if args.use_gui:
 			from gui import driver
-			print('Shell disabled. Launching GUI') # TODO: replace with GUI
+			print('Shell disabled. Launching GUI...')
 			driver(lconn)
 		else:
 			shell(lconn, args.shell)

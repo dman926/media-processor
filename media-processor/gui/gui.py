@@ -100,4 +100,5 @@ def driver(lconn: LockableSqliteConn) -> None:
 	action_frame = Frame(root)
 	action_frame.grid(row=2, column=0, sticky=SE)
 	Button(action_frame, text='Exit', command=lambda: quit(root)).grid(row=0, column=0, padx=5)
+	
 	root.mainloop()
