@@ -76,7 +76,7 @@ if __name__ == '__main__':
 	parser.add_argument('-kh', '--known-hosts', dest='known_hosts', help='location of an ssh known_hosts file. required if using sftp and you care about security', type=dir_file)
 	parser.add_argument('-pkl', '--private-key_loc', dest='private_key_loc', help='location of a ssh private key to use for sftp', type=dir_file)
 	parser.add_argument('-pkp', '--private-key-pass', dest='private_key_pass', help='the ssh private key password')
-	parser.add_argument('-s', '--shell', dest='shell', help='the shell symbol to use', default='$ ')
+	parser.add_argument('-s', '--shell', dest='shell_symbol', help='the shell symbol to use', default='$ ')
 	parser.add_argument('-ds', '--disable-shell', dest='disable_shell', help='use to disable the shell', action='store_true')
 	parser.add_argument('-cr', '--clean-regex',
 		dest='clean_regex',
@@ -132,7 +132,7 @@ if __name__ == '__main__':
 			print('Shell disabled. Waiting.')
 			watcherThread.join()
 		else:
-			shell(lconn, args.shell)
+			shell(lconn, args.shell_symbol)
 	except ServiceExit:
 		pass
 	finally:

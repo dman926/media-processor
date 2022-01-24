@@ -138,7 +138,7 @@ if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-g', '--gui', dest='use_gui', help='use the gui instead of the shell', action='store_true')
-	parser.add_argument('-s', '--shell', dest='shell', help='the shell symbol to use', default='$ ')
+	parser.add_argument('-s', '--shell', dest='shell_symbol', help='the shell symbol to use', default='$ ')
 	args: argparse.Namespace = parser.parse_args()
 	lconn = LockableSqliteConn('db.sqlite3')
 	try:
@@ -154,7 +154,7 @@ if __name__ == '__main__':
 			print('Shell disabled. Launching GUI...')
 			driver(lconn)
 		else:
-			shell(lconn, args.shell)
+			shell(lconn, args.shell_symbol)
 	except ServiceExit:
 		pass
 	finally:
