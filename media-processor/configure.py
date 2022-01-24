@@ -10,8 +10,7 @@ def yn(say: str) -> bool:
 	yn = input(say + 'Continue? (y/n)').lower()
 	return yn == 'y' or yn == 'e' or yn == 's'
 
-def command(commands: list[str]) -> None:
-	lconn = LockableSqliteConn('db.sqlite3')
+def command(lconn: LockableSqliteConn, commands: list[str]) -> None:
 	with lconn:
 		for c in commands:
 			split: list[str] = [a.strip() for a in shlex.split(c)]
@@ -97,8 +96,7 @@ def command(commands: list[str]) -> None:
 				if not yn(f'[{c}] is not a valid command and it will be ignored. '):
 					break
 
-
-def shell(symbol: str):
+def shell(lconn: LockableSqliteConn, symbol: str):
 	print('Starting shell.')
 	commands: list[str] = []
 	while True:
@@ -114,7 +112,7 @@ def shell(symbol: str):
 			elif c == 'exec':
 				print('Executing commands.')
 				try:
-					command(commands[:-1])
+					command(lconn, commands[:-1])
 				except Exception as e:
 					print(f'Some commands did not execute successfully. [{e}] error occured')
 				commands: list[str] = []
@@ -128,30 +126,34 @@ if __name__ == '__main__':
 		raise ServiceExit
 
 	import argparse
+	import logging
 	import signal
 
-	from db import connect_to_db, create_tables, disconnect_from_db
+	from db import create_tables
 
 	# Attach interrupt handler to shutdown gracefully
 	signal.signal(signal.SIGINT, service_shutdown)
+
+	logger = logging.getLogger(__name__)
+
 	parser = argparse.ArgumentParser()
+	parser.add_argument('-ds', '--disable-shell', dest='disable_shell', help='use to disable the shell', action='store_true')
 	parser.add_argument('-s', '--shell', dest='shell', help='the shell symbol to use', default='$ ')
 	args: argparse.Namespace = parser.parse_args()
-	if not connect_to_db():
-		print('Something went wrong connecting to the DB. Exiting. (Error 2)')
-		exit(2)
-	print('Connected to DB.')
-	if not create_tables():
-		print('Something went wrong creating DB tables. Exiting. (Error 3)')
+	lconn = LockableSqliteConn('db.sqlite3')
+	try:
+		create_tables(lconn)
+	except Exception:
+		print('There was an error creating tables. Exiting. (Error 3)')
+		logger.error('Exiting with code 3')
 		exit(3)
 	print('Tables created if not exist.')
 	try:
-		shell(args.shell)
+		if args.disable_shell:
+			print('Shell disabled.') # TODO: replace with GUI
+		else:
+			shell(lconn, args.shell)
 	except ServiceExit:
 		pass
 	finally:
-		if disconnect_from_db():
-			print("Successfully disconnected from DB.")
-		else:
-			print("Error disconnecting from DB. Perhaps it is already disconnected?")
 		print('Exiting')
