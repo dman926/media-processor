@@ -1,4 +1,3 @@
-from textwrap import fill
 from tkinter import *
 from typing import Optional
 
