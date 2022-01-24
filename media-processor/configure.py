@@ -150,7 +150,9 @@ if __name__ == '__main__':
 	print('Tables created if not exist.')
 	try:
 		if args.disable_shell:
-			print('Shell disabled.') # TODO: replace with GUI
+			from gui import driver
+			print('Shell disabled. Launching GUI') # TODO: replace with GUI
+			driver(lconn)
 		else:
 			shell(lconn, args.shell)
 	except ServiceExit:
