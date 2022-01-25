@@ -1,6 +1,6 @@
 # Media Processor
 
-UNDER CONSTRUCTION. PLEASE WAIT FOR RELEASE UNLESS YOU WANT TO FIDDLE WITH IT.
+CLI VERSION IS READY. WORKING ON GUI CONFIGURATOR.
 
 A python program to scan, auto-transcode, rename, and move media.
 
