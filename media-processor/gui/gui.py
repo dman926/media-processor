@@ -77,7 +77,7 @@ class RootWindow:
 		property_listbox_scroll.config(command=self.destination_listbox.yview)
 		destination_actions_frame = Frame(main_frame)
 		destination_actions_frame.grid(row=1, column=1)
-		Button(destination_actions_frame, text='Add/Edit destination server').grid(row=0, column=0)
+		Button(destination_actions_frame, text='Add/Edit destination server', command=lambda: AddEditDestinationWindow(self)).grid(row=0, column=0)
 		Button(destination_actions_frame, text='Remove destination server', command=self.remove_selected_destination).grid(row=1, column=0)
 
 		self.update_destinations_list()
@@ -175,17 +175,17 @@ class AddEditPropertyWindow:
 		if selected_property:
 			prop = get_properties(self.root_window.lconn, selected_property)
 			settings = get_property_settings(self.root_window.lconn, selected_property)
-			
-			self.property_entry.insert(0, prop[0])
-			self.pattern_entry.insert(0, prop[1])
-			self.partial_var.set(prop[2])
-
-			self.ffmpeg_args_entry.insert(0, settings[1])
-			self.output_container_entry.insert(0, settings[2])
-			self.destination_server_box.set(settings[3] if settings[3] else '')
-			self.folder_entry.insert(0, settings[4])
-			self.is_show_var.set(settings[5])
-			self.season_override_entry.insert(0, settings[6])
+			if prop:
+				self.property_entry.insert(0, prop[0])
+				self.pattern_entry.insert(0, prop[1])
+				self.partial_var.set(prop[2])
+			if settings:
+				self.ffmpeg_args_entry.insert(0, settings[1])
+				self.output_container_entry.insert(0, settings[2])
+				self.destination_server_box.set(settings[3] if settings[3] else '')
+				self.folder_entry.insert(0, settings[4])
+				self.is_show_var.set(settings[5])
+				self.season_override_entry.insert(0, settings[6])
 
 	def get_values(self) -> dict:
 		'''Get the values as a dict of lists representing the DB entries'''
@@ -209,14 +209,67 @@ class AddEditPropertyWindow:
 
 	def save_and_exit(self) -> None:
 		'''Save changes and close TopLevel'''
-		# TODO: save settings to db
 		values = self.get_values()
 		command(self.root_window.lconn, [
 			'add property "' + '" "'.join(values['properties']) + '"',
-			'add setting "' +  '"  "'.join(values['settings']) + '"', 'commit'
+			'add setting "' +  '"  "'.join(values['settings']) + '"',
+			'commit'
 		])
-		self.add_edit_window.destroy()
 		self.root_window.update_properties_list()
+		self.add_edit_window.destroy()
+	
+
+class AddEditDestinationWindow:
+	def __init__(self, root_window: RootWindow) -> None:
+		self.root_window = root_window
+
+		# Build window
+		self.add_edit_window = Toplevel()
+		self.add_edit_window.minsize(500, 500)
+		self.add_edit_window.title('Media Processor Configurator | Add Edit Destination')
+		self.add_edit_window.grid_columnconfigure(0, weight=1)
+		self.add_edit_window.grid_rowconfigure(0, weight=1)
+
+		main_frame = Frame(self.add_edit_window)
+		main_frame.grid(row=0, column=0, sticky=N)
+
+		destination_frame = Frame(main_frame)
+		destination_frame.grid(row=0, column=0, pady=10)
+		Label(destination_frame, text='Destination').grid(row=0, column=0, columnspan=2)
+		Label(destination_frame, text='user@ip[:port]:').grid(row=1, column=0)
+		self.user_at_ip_entry = Entry(destination_frame)
+		self.user_at_ip_entry.grid(row=1, column=1)
+		Label(destination_frame, text='Password (UNENCRYPTED!) (optional if using ssh keys):').grid(row=2, column=0)
+		self.password_entry = Entry(destination_frame, show='*')
+		self.password_entry.grid(row=2, column=1)
+
+		action_frame = Frame(self.add_edit_window)
+		action_frame.grid(row=1, column=0, sticky=SE)
+		Button(action_frame, text='Save and Exit', command=self.save_and_exit).grid(row=0, column=0, padx=5)
+
+		selected_destination: Optional[str] = self.root_window.destination_listbox.get(self.root_window.destination_listbox.curselection()[0]) if len(self.root_window.destination_listbox.curselection()) > 0 else None
+		if selected_destination:
+			destination = get_destinations(self.root_window.lconn, selected_destination)
+			if destination:
+				self.user_at_ip_entry.insert(0, destination[0])
+				self.password_entry.insert(0, destination[1])
+
+	def get_values(self) -> dict:
+		'''Get the values as list representing the DB entry'''
+		return [
+			self.user_at_ip_entry.get(),
+			self.password_entry.get()
+		]
+
+	def save_and_exit(self) -> None:
+		'''Save changes and close TopLevel'''
+		values = self.get_values()
+		command(self.root_window.lconn, [
+			'add destination "' + '" "'.join(values) + '"',
+			'commit'
+		])
+		self.root_window.update_destinations_list()
+		self.add_edit_window.destroy()
 
 
 def driver(lconn: LockableSqliteConn) -> None:
