@@ -112,6 +112,9 @@ class ProcessorThread(threading.Thread):
 					os.makedirs(self.process_folder)
 				with processing_lock:
 					item = processing_queue.get()
+
+				logger.info(f'Starting processing of {item}')
+
 				filename = os.path.basename(item).rsplit('.', 1)
 				ext = filename[1]
 				filename = self.clean_filename(filename[0])
@@ -130,42 +133,43 @@ class ProcessorThread(threading.Thread):
 						if score > 40 and score > topScore:
 							topMatch = prow[0]
 					if topMatch:
-						self.lconn.cur.execute('''SELECT ps.ffmpeg_args, ps.output_container, ps.folder, ds.user_at_ip, ds.password, ps.is_show, ps.season_override FROM property_settings ps JOIN destination_servers ds ON ps.user_at_ip = ds.user_at_ip WHERE property = ?;''', (topMatch,))
+						logger.info(f'Matched {item} to {topMatch}')
+						self.lconn.cur.execute('''SELECT ps.ffmpeg_input_args, ps.ffmpeg_output_args, ps.output_container, ps.folder, ds.user_at_ip, ds.password, ps.is_show, ps.season_override FROM property_settings ps JOIN destination_servers ds ON ps.user_at_ip = ds.user_at_ip WHERE property = ?;''', (topMatch,))
 						row = self.lconn.cur.fetchone()
 						if not row:
-							self.lconn.cur.execute('''SELECT ps.ffmpeg_args, ps.output_container, ps.folder, ps.is_show, ps.season_override FROM property_settings ps WHERE property = ?;''', (topMatch,))
+							self.lconn.cur.execute('''SELECT ps.ffmpeg_input_args, ps.ffmpeg_output_args, ps.output_container, ps.folder, ps.is_show, ps.season_override FROM property_settings ps WHERE property = ?;''', (topMatch,))
 							row = self.lconn.cur.fetchone()
 							if row:
 								# hacky way to get around not having a destination server
 								row = list(row)
-								row.insert(3, None)
 								row.insert(4, None)
+								row.insert(5, None)
 								row = tuple(row)
+					else:
+						logger.warning(f'Can\'t process {item}. No properties that are close enough.')
 				if row:
 					try:
-						args = [a.strip() for a in shlex.split(row[0])]
+						input_args = [a.strip() for a in shlex.split(row[0])]
+						output_args = [a.strip() for a in shlex.split(row[1])]
 						modifiers = ''
-						if row[5]:
+						if row[6]:
 							# is show
 							season_episode = re.search(self.season_episode_regex, filename)
 							if season_episode:
 								modifiers = f' {season_episode.group().upper()}'
-							elif row[6] != None:
-								print(self.episode_regex)
-								print(filename)
+							elif row[7]:
 								season_episode = re.search(self.episode_regex, filename)
-								print(season_episode.group())
 								if season_episode:
-									modifiers = f' S{int(row[6]):02}E{int(season_episode.group().replace(" ", "").replace("-", "").replace("e", "")):02}'
-						tmp_output_path = os.path.join(self.process_folder, topMatch + modifiers + '.' + row[1])
-						s_args = ['ffmpeg', '-y', '-i', item, *args, '-v', 'quiet', f'{tmp_output_path}']
+									modifiers = f' S{int(row[7]):02}E{int(season_episode.group().replace(" ", "").replace("-", "").replace("e", "")):02}'
+						tmp_output_path = os.path.join(self.process_folder, topMatch + modifiers + '.' + row[2])
+						s_args = ['ffmpeg', '-y', *input_args, '-i', item, *output_args, '-v', 'quiet', f'{tmp_output_path}']
 						p = Popen(s_args)
 						if p.wait() != 0:
 							raise SubprocessError
-						if not row[3]:
-							os.replace(tmp_output_path, os.path.join(row[2], topMatch + modifiers + '.' + row[1]))
+						if not row[4]:
+							os.replace(tmp_output_path, os.path.join(row[3], topMatch + modifiers + '.' + row[2]))
 						elif sftp_ok:
-							sftp_user = row[3].split('@', 1)
+							sftp_user = row[4].split('@', 1)
 							sftp_host = sftp_user[1].split(':', 1)
 							if len(sftp_host) > 1:
 								sftp_port = int(sftp_host[1])
@@ -175,24 +179,24 @@ class ProcessorThread(threading.Thread):
 							sftp_user = sftp_user[0]
 							try:
 								cpass = True
-								if not row[4] and self.private_key_loc:
+								if not row[5] and self.private_key_loc:
 									self.ssh_client.connect(hostname=sftp_host, username=sftp_user, port=sftp_port, key_filename=self.private_key_loc, passphrase=self.private_key_pass)
-								elif row[4]:
+								elif row[5]:
 									self.ssh_client.connect(hostname=sftp_host, username=sftp_user, password=row[4], port=sftp_port)
 								else:
 									cpass = False
 								if cpass:
 									sftp = self.ssh_client.open_sftp()
-									sftp.put(tmp_output_path, os.path.join(row[2], topMatch + modifiers + '.' + row[1]))
+									sftp.put(tmp_output_path, os.path.join(row[3], topMatch + modifiers + '.' + row[2]))
 									os.remove(tmp_output_path)
 								else:
-									logger.warn('Can\'t SFTP file to remote server. No ssh key or password given. File is processed, but will not be moved.')
+									logger.warn(f'Can\'t SFTP {item} to remote server. No ssh key or password given. File is processed, but will not be moved.')
 							except SSHException:
-								logger.warn('Can\'t SFTP file to remote server. Invalid host. Perhaps it isn\'t in the `known_hosts` file?. File is processed, but will not be moved.')
+								logger.warn(f'Can\'t SFTP {item} to remote server. Invalid host. Perhaps it isn\'t in the `known_hosts` file?. File is processed, but will not be moved.')
 							self.ssh_client.close()
 						else:
-							logger.warn('Can\'t SFTP file to remote server. `paramiko` not installed. File is processed, but will not be moved.')
+							logger.warn(f'Can\'t SFTP {item} to remote server. `paramiko` not installed. File is processed, but will not be moved.')
 					except SubprocessError as e:
-						logger.error(f'\nError executing command {s_args}: {e}')
+						logger.error(f'\nError executing command {s_args} for {item}: {e}')
 				else:
-					logger.warn(f'\nTried procesing {filename}.{ext}, but failed due to missing settings.')
+					logger.warn(f'\nTried procesing {item}, but failed due to missing settings.')

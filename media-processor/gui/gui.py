@@ -145,27 +145,30 @@ class AddEditPropertyWindow:
 		settings_frame = Frame(main_frame)
 		settings_frame.grid(row=3, column=0, pady=10)
 		Label(settings_frame, text='Settings').grid(row=0, column=0, columnspan=2)
-		Label(settings_frame, text='FFMPEG Args:').grid(row=1, column=0)
-		self.ffmpeg_args_entry = Entry(settings_frame)
-		self.ffmpeg_args_entry.grid(row=1, column=1)
-		Label(settings_frame, text='Output Container:').grid(row=2, column=0)
+		Label(settings_frame, text='FFMPEG Input Args:').grid(row=1, column=0)
+		self.ffmpeg_input_args_entry = Entry(settings_frame)
+		self.ffmpeg_input_args_entry.grid(row=1, column=1)
+		Label(settings_frame, text='FFMPEG Output Args:').grid(row=2, column=0)
+		self.ffmpeg_output_args_entry = Entry(settings_frame)
+		self.ffmpeg_output_args_entry.grid(row=2, column=1)
+		Label(settings_frame, text='Output Container:').grid(row=3, column=0)
 		self.output_container_entry = Entry(settings_frame)
-		self.output_container_entry.grid(row=2, column=1)
-		Label(settings_frame, text='Destination Server (leave blank for local):').grid(row=3, column=0)
+		self.output_container_entry.grid(row=3, column=1)
+		Label(settings_frame, text='Destination Server (leave blank for local):').grid(row=4, column=0)
 		with self.root_window.lconn:
 			self.root_window.lconn.cur.execute('''SELECT user_at_ip FROM destination_servers;''')
 			user_at_ips = list(map(lambda uai: uai[0], self.root_window.lconn.cur.fetchall()))
 		self.destination_server_box = ttk.Combobox(settings_frame, values=user_at_ips)
-		self.destination_server_box.grid(row=3, column=1)
-		Label(settings_frame, text='Folder:').grid(row=4, column=0)
+		self.destination_server_box.grid(row=4, column=1)
+		Label(settings_frame, text='Folder:').grid(row=5, column=0)
 		self.folder_entry = Entry(settings_frame)
-		self.folder_entry.grid(row=4, column=1)
+		self.folder_entry.grid(row=5, column=1)
 		self.is_show_var = IntVar()
 		is_show_checkbox = Checkbutton(settings_frame, text='Is Show?', variable=self.is_show_var)
-		is_show_checkbox.grid(row=5, column=0, columnspan=2)
-		Label(settings_frame, text='Season Override (leave blank for auto):').grid(row=6, column=0)
+		is_show_checkbox.grid(row=6, column=0, columnspan=2)
+		Label(settings_frame, text='Season Override (leave blank for auto):').grid(row=7, column=0)
 		self.season_override_entry = Entry(settings_frame)
-		self.season_override_entry.grid(row=6, column=1)
+		self.season_override_entry.grid(row=7, column=1)
 
 		action_frame = Frame(self.add_edit_window)
 		action_frame.grid(row=4, column=0, sticky=SE)
@@ -180,12 +183,13 @@ class AddEditPropertyWindow:
 				self.pattern_entry.insert(0, prop[1])
 				self.partial_var.set(prop[2])
 			if settings:
-				self.ffmpeg_args_entry.insert(0, settings[1])
-				self.output_container_entry.insert(0, settings[2])
-				self.destination_server_box.set(settings[3] if settings[3] else '')
-				self.folder_entry.insert(0, settings[4])
-				self.is_show_var.set(settings[5])
-				self.season_override_entry.insert(0, settings[6])
+				self.ffmpeg_input_args_entry.insert(0, settings[1])
+				self.ffmpeg_output_args_entry.insert(0, settings[2])
+				self.output_container_entry.insert(0, settings[3])
+				self.destination_server_box.set(settings[3] if settings[4] else '')
+				self.folder_entry.insert(0, settings[5])
+				self.is_show_var.set(settings[6])
+				self.season_override_entry.insert(0, settings[7])
 
 	def get_values(self) -> dict:
 		'''Get the values as a dict of lists representing the DB entries'''
@@ -198,7 +202,8 @@ class AddEditPropertyWindow:
 			],
 			'settings': [
 				prop,
-				self.ffmpeg_args_entry.get(),
+				self.ffmpeg_input_args_entry.get(),
+				self.ffmpeg_output_args_entry.get(),
 				self.output_container_entry.get(),
 				self.folder_entry.get(),
 				self.destination_server_box.get(),

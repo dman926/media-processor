@@ -34,7 +34,7 @@ Commands are saved as a list and exececuted on the `exec` command.
 * `vacuum` - Prune the DB to save space.
 * `add ...`
   * `property <PROPERTY>` - Add a property.
-  * `setting <PROPERTY> <FFMPEG ARGS> <OUTPUT CONTAINER> <DESTINATION FOLDER> <DESTINATION SERVER (user@ip:port (port optional)) (optional)>` - Add processing settings to a property for matching.
+  * `setting <PROPERTY> <FFMPEG INPUT ARGS> <FFMPEG OUTPUT ARGS> <OUTPUT CONTAINER> <DESTINATION FOLDER> <DESTINATION SERVER (user@ip:port (port optional)) (optional)>` - Add processing settings to a property for matching.
   * `destination <user@ip:port (port optional)> <PASSWORD (optional if using ssh keys)>` - Add a destination server.
 * `remove ...`
   * `property <PROPERTY>` - Remove a property and it's processing settings.

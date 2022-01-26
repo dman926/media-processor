@@ -32,7 +32,8 @@ def create_tables(lconn: LockableSqliteConn) -> None:
 		);''')
 		lconn.cur.execute('''CREATE TABLE IF NOT EXISTS property_settings (
 			property TEXT,
-			ffmpeg_args TEXT NOT NULL,
+			ffmpeg_input_args TEXT,
+			ffmpeg_output_args TEXT NOT NULL,
 			output_container TEXT NOT NULL,
 			user_at_ip TEXT,
 			folder TEXT NOT NULL,

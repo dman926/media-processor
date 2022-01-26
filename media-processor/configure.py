@@ -32,25 +32,26 @@ def command(lconn: LockableSqliteConn, commands: list[str]) -> None:
 					lconn.cur.execute('''INSERT INTO properties (property, pattern, partial) VALUES (?, ?, ?) ON CONFLICT(property) DO UPDATE SET pattern = ?, partial = ?;''', (property, pattern, partial, pattern, partial))
 				elif split[1] == 'setting':
 					property = split[2]
-					ffmpeg_args = split[3]
-					output_container = split[4]
-					folder = split[5]
+					ffmpeg_input_args = split[3]
+					ffmpeg_output_args = split[4]
+					output_container = split[5]
+					folder = split[6]
 					destination_server = None
 					is_show = 0
 					season_override = None
-					if len(split) > 6:
-						for i in range(6, len(split)):
-							if i == 6:
+					if len(split) > 7:
+						for i in range(7, len(split)):
+							if i == 7:
 								if len(split[i]) > 0:
 									destination_server = split[i]
-							elif i == 7:
-								if len(split[i]) > 0:
-									is_show = 1
 							elif i == 8:
 								if len(split[i]) > 0:
+									is_show = 1
+							elif i == 9:
+								if len(split[i]) > 0:
 									season_override = split[i]
-					print(f'Adding settings (ffmpeg_args: "{ffmpeg_args}") (output_container: "{output_container}") (destination folder: "{folder}") (destination server "{destination_server}") to property "{property}."')
-					lconn.cur.execute('''INSERT INTO property_settings (property, ffmpeg_args, output_container, user_at_ip, folder, is_show, season_override) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(property) DO UPDATE SET ffmpeg_args = ?, output_container = ?, user_at_ip = ?, folder = ?, is_show = ?, season_override = ?;''', (property, ffmpeg_args, output_container, destination_server, folder, is_show, season_override, ffmpeg_args, output_container, destination_server, folder, is_show, season_override))
+					print(f'Adding settings (ffmpeg_input_args: "{ffmpeg_input_args}") (ffmpeg_output_args: "{ffmpeg_output_args}") (output_container: "{output_container}") (destination folder: "{folder}") (destination server "{destination_server}") to property "{property}."')
+					lconn.cur.execute('''INSERT INTO property_settings (property, ffmpeg_input_args, ffmpeg_output_args, output_container, user_at_ip, folder, is_show, season_override) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(property) DO UPDATE SET ffmpeg_input_args = ?, ffmpeg_output_args = ?, output_container = ?, user_at_ip = ?, folder = ?, is_show = ?, season_override = ?;''', (property, ffmpeg_input_args, ffmpeg_output_args, output_container, destination_server, folder, is_show, season_override, ffmpeg_input_args, ffmpeg_output_args, output_container, destination_server, folder, is_show, season_override))
 				elif split[1] == 'destination':
 					user_at_ip = split[2]
 					if len(split) > 3:
