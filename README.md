@@ -1,7 +1,5 @@
 # Media Processor
 
-CLI VERSION IS READY. WORKING ON GUI CONFIGURATOR.
-
 A python program to scan, auto-transcode, rename, and move media.
 
 This was made for my PleX server so I can easily set up rules to automate my workflow.
