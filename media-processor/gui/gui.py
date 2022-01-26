@@ -33,15 +33,70 @@ def get_destinations(lconn: LockableSqliteConn, user_at_ip: Optional[str] = None
 			return lconn.cur.fetchall()
 
 
-class AddEditPropertyWindow:
-	def __init__(self, lconn: LockableSqliteConn, root: Tk, listbox: Listbox) -> None:
+class RootWindow:
+	def __init__(self, lconn: LockableSqliteConn):
 		self.lconn = lconn
-		self.root = root
-		self.listbox = listbox
+
+		# Build window
+		self.root = Tk()
+		self.root.title('Media Processor Configurator')
+		self.root.minsize(500, 500)
+		self.root.grid_columnconfigure(0, weight=1)
+		self.root.grid_rowconfigure(0, weight=1)
+
+		main_frame = Frame(self.root)
+		main_frame.grid(row=0, column=0, sticky=N)
+	
+		# Add property listings and action buttons
+		property_frame = Frame(main_frame)
+		property_frame.grid(row=0, column=0, pady=10)
+		self.property_listbox = Listbox(property_frame)
+		self.property_listbox.grid(row=0, column=0)
+		property_listbox_scroll = Scrollbar(property_frame)
+		property_listbox_scroll.grid(row=0, column=1, sticky=N+S+W)
+		self.property_listbox.config(yscrollcommand=property_listbox_scroll.set)
+		property_listbox_scroll.config(command=self.property_listbox.yview)
+		property_actions_frame = Frame(main_frame)
+		property_actions_frame.grid(row=0, column=1)
+		Button(property_actions_frame, text='Add/Edit property', command=lambda: AddEditPropertyWindow(self)).grid(row=0, column=0)
+		Button(property_actions_frame, text='Remove property').grid(row=1, column=0)
+
+		for i, row in enumerate(get_properties(self.lconn)):
+			self.property_listbox.insert(i, row[0])
+
+		# Add destination listings and action buttons
+		destination_frame = Frame(main_frame)
+		destination_frame.grid(row=1, column=0, pady=10)
+		self.destination_listbox = Listbox(destination_frame)
+		self.destination_listbox.grid(row=0, column=0)
+		destination_listbox_scroll = Scrollbar(destination_frame)
+		destination_listbox_scroll.grid(row=0, column=1, sticky=N+S+W)
+		self.destination_listbox.config(yscrollcommand=property_listbox_scroll.set)
+		property_listbox_scroll.config(command=self.destination_listbox.yview)
+		destination_actions_frame = Frame(main_frame)
+		destination_actions_frame.grid(row=1, column=1)
+		Button(destination_actions_frame, text='Add/Edit destination server').grid(row=0, column=0)
+		Button(destination_actions_frame, text='Remove destination server').grid(row=1, column=0)
+
+		for i, row in enumerate(get_destinations(lconn)):
+			self.destination_listbox.insert(i, row[0])
+	
+		# Add action button(s)
+		action_frame = Frame(self.root)
+		action_frame.grid(row=2, column=0, sticky=SE)
+		Button(action_frame, text='Exit', command=lambda: self.root.quit()).grid(row=0, column=0, padx=5)
+	
+		self.root.mainloop()
+
+
+class AddEditPropertyWindow:
+	def __init__(self, root_window: RootWindow) -> None:
+		self.root_window = root_window
 
 		# Build window
 		self.add_edit_window = Toplevel()
 		self.add_edit_window.minsize(500, 500)
+		self.add_edit_window.title('Media Processor Configurator | Add Edit Property')
 		self.add_edit_window.grid_columnconfigure(0, weight=1)
 		self.add_edit_window.grid_rowconfigure(0, weight=1)
 
@@ -49,7 +104,7 @@ class AddEditPropertyWindow:
 		main_frame.grid(row=0, column=0, sticky=N)
 
 		property_frame = Frame(main_frame)
-		property_frame.grid(row=0, column=0)
+		property_frame.grid(row=0, column=0, pady=10)
 		Label(property_frame, text='Property').grid(row=0, column=0, columnspan=2)
 		Label(property_frame, text='Property:').grid(row=1, column=0)
 		self.property_entry = Entry(property_frame)
@@ -62,7 +117,7 @@ class AddEditPropertyWindow:
 		partial_checkbox.grid(row=3, column=0, columnspan=2)
 
 		settings_frame = Frame(main_frame)
-		settings_frame.grid(row=3, column=0)
+		settings_frame.grid(row=3, column=0, pady=10)
 		Label(settings_frame, text='Settings').grid(row=0, column=0, columnspan=2)
 		Label(settings_frame, text='FFMPEG Args:').grid(row=1, column=0)
 		self.ffmpeg_args_entry = Entry(settings_frame)
@@ -74,9 +129,9 @@ class AddEditPropertyWindow:
 		self.folder_entry = Entry(settings_frame)
 		self.folder_entry.grid(row=3, column=1)
 		Label(settings_frame, text='Destination Server (leave blank for local):').grid(row=4, column=0)
-		with self.lconn:
-			self.lconn.cur.execute('''SELECT user_at_ip FROM destination_servers;''')
-			user_at_ips = list(map(lambda uai: uai[0], self.lconn.cur.fetchall()))
+		with self.root_window.lconn:
+			self.root_window.lconn.cur.execute('''SELECT user_at_ip FROM destination_servers;''')
+			user_at_ips = list(map(lambda uai: uai[0], self.root_window.lconn.cur.fetchall()))
 		self.destination_server_box = ttk.Combobox(settings_frame, values=user_at_ips)
 		self.destination_server_box.grid(row=4, column=1)
 		self.is_show_var = IntVar()
@@ -121,66 +176,6 @@ class AddEditPropertyWindow:
 	# else:
 	# 	pass
 
-def remove_propery(lconn: LockableSqliteConn, root: Tk, listbox: Listbox) -> None:
-	pass
-
-def add_edit_destination(lconn: LockableSqliteConn, root: Tk, listbox: Listbox) -> None:
-	pass
-
-def remove_destination(lconn: LockableSqliteConn, root: Tk, listbox: Listbox) -> None:
-	pass
-
-def quit(root: Tk) -> None:
-	print('quit')
-	root.quit()
 
 def driver(lconn: LockableSqliteConn) -> None:
-	root = Tk()
-	root.title('Media Processor Configurator')
-	root.minsize(500, 500)
-	root.grid_columnconfigure(0, weight=1)
-	root.grid_rowconfigure(0, weight=1)
-
-	main_frame = Frame(root)
-	main_frame.grid(row=0, column=0, sticky=N)
-	
-	# Add property listings and action buttons
-	property_frame = Frame(main_frame)
-	property_frame.grid(row=0, column=0)
-	property_listbox = Listbox(property_frame)
-	property_listbox.grid(row=0, column=0)
-	property_listbox_scroll = Scrollbar(property_frame)
-	property_listbox_scroll.grid(row=0, column=1, sticky=N+S+W)
-	property_listbox.config(yscrollcommand=property_listbox_scroll.set)
-	property_listbox_scroll.config(command=property_listbox.yview)
-	property_actions_frame = Frame(main_frame)
-	property_actions_frame.grid(row=0, column=1)
-	Button(property_actions_frame, text='Add/Edit property', command=lambda: AddEditPropertyWindow(lconn, root, property_listbox)).grid(row=0, column=0)
-	Button(property_actions_frame, text='Remove property', command=lambda: remove_propery(lconn, root, property_listbox)).grid(row=1, column=0)
-
-	for i, row in enumerate(get_properties(lconn)):
-		property_listbox.insert(i, row[0])
-	
-	# Add destination listings and action buttons
-	destination_frame = Frame(main_frame)
-	destination_frame.grid(row=1, column=0)
-	destination_listbox = Listbox(destination_frame)
-	destination_listbox.grid(row=0, column=0)
-	property_listbox_scroll = Scrollbar(destination_frame)
-	property_listbox_scroll.grid(row=0, column=1, sticky=N+S+W)
-	property_listbox.config(yscrollcommand=property_listbox_scroll.set)
-	property_listbox_scroll.config(command=property_listbox.yview)
-	destination_actions_frame = Frame(main_frame)
-	destination_actions_frame.grid(row=1, column=1)
-	Button(destination_actions_frame, text='Add/Edit destination server', command=lambda: add_edit_destination(lconn, root, property_listbox)).grid(row=0, column=0)
-	Button(destination_actions_frame, text='Remove destination server', command=lambda: remove_destination(lconn, root, property_listbox)).grid(row=1, column=0)
-
-	for i, row in enumerate(get_destinations(lconn)):
-		destination_listbox.insert(i, row[0])
-	
-	# Add action button(s)
-	action_frame = Frame(root)
-	action_frame.grid(row=2, column=0, sticky=SE)
-	Button(action_frame, text='Exit', command=lambda: quit(root)).grid(row=0, column=0, padx=5)
-	
-	root.mainloop()
+	RootWindow(lconn)
