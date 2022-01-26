@@ -189,7 +189,7 @@ class AddEditPropertyWindow:
 				self.destination_server_box.set(settings[3] if settings[4] else '')
 				self.folder_entry.insert(0, settings[5])
 				self.is_show_var.set(settings[6])
-				self.season_override_entry.insert(0, settings[7])
+				self.season_override_entry.insert(0, settings[7] if settings[7] else '')
 
 	def get_values(self) -> dict:
 		'''Get the values as a dict of lists representing the DB entries'''
