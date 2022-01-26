@@ -67,6 +67,7 @@ def command(lconn: LockableSqliteConn, commands: list[str]) -> None:
 					property = split[2]
 					print(f'Removing property {property}.')
 					lconn.cur.execute('''DELETE FROM properties WHERE property = ?;''', (property,))
+					lconn.cur.execute('''DELETE FROM property_settings WHERE property = ?;''', (property,))		
 				elif split[1] == 'setting':
 					property = split[2]
 					print(f'Removing settings from {property}.')
@@ -75,6 +76,7 @@ def command(lconn: LockableSqliteConn, commands: list[str]) -> None:
 					user_at_ip = split[2]
 					print(f'Removing destination server at {user_at_ip}.')
 					lconn.cur.execute('''DELETE FROM destination_servers WHERE user_at_ip = ?;''', (user_at_ip,))
+					lconn.cur.execute('''UPDATE property_settings SET user_at_ip = NULL WHERE user_at_ip = ?;''', (user_at_ip,))
 				else:
 					if not yn(f'[{split[1]}] is not a valid `remove` command and it will be ignored. '):
 						break

@@ -1,5 +1,6 @@
 from tkinter import *
 from tkinter import ttk
+from tkinter.messagebox import askyesno
 from typing import Optional
 
 from db import LockableSqliteConn
@@ -52,6 +53,7 @@ class RootWindow:
 		property_frame.grid(row=0, column=0, pady=10)
 		self.property_listbox = Listbox(property_frame)
 		self.property_listbox.grid(row=0, column=0)
+		self.property_listbox.bind('<FocusOut>', lambda e: self.property_listbox.selection_clear(0, END))
 		property_listbox_scroll = Scrollbar(property_frame)
 		property_listbox_scroll.grid(row=0, column=1, sticky=N+S+W)
 		self.property_listbox.config(yscrollcommand=property_listbox_scroll.set)
@@ -59,16 +61,16 @@ class RootWindow:
 		property_actions_frame = Frame(main_frame)
 		property_actions_frame.grid(row=0, column=1)
 		Button(property_actions_frame, text='Add/Edit property', command=lambda: AddEditPropertyWindow(self)).grid(row=0, column=0)
-		Button(property_actions_frame, text='Remove property').grid(row=1, column=0)
+		Button(property_actions_frame, text='Remove property', command=self.remove_selected_property).grid(row=1, column=0)
 
-		for i, row in enumerate(get_properties(self.lconn)):
-			self.property_listbox.insert(i, row[0])
+		self.update_properties_list()
 
 		# Add destination listings and action buttons
 		destination_frame = Frame(main_frame)
 		destination_frame.grid(row=1, column=0, pady=10)
 		self.destination_listbox = Listbox(destination_frame)
 		self.destination_listbox.grid(row=0, column=0)
+		self.destination_listbox.bind('<FocusOut>', lambda e: self.destination_listbox.selection_clear(0, END))
 		destination_listbox_scroll = Scrollbar(destination_frame)
 		destination_listbox_scroll.grid(row=0, column=1, sticky=N+S+W)
 		self.destination_listbox.config(yscrollcommand=property_listbox_scroll.set)
@@ -76,10 +78,9 @@ class RootWindow:
 		destination_actions_frame = Frame(main_frame)
 		destination_actions_frame.grid(row=1, column=1)
 		Button(destination_actions_frame, text='Add/Edit destination server').grid(row=0, column=0)
-		Button(destination_actions_frame, text='Remove destination server').grid(row=1, column=0)
+		Button(destination_actions_frame, text='Remove destination server', command=self.remove_selected_destination).grid(row=1, column=0)
 
-		for i, row in enumerate(get_destinations(lconn)):
-			self.destination_listbox.insert(i, row[0])
+		self.update_destinations_list()
 	
 		# Add action button(s)
 		action_frame = Frame(self.root)
@@ -88,6 +89,31 @@ class RootWindow:
 	
 		self.root.mainloop()
 
+	def update_properties_list(self) -> None:
+		self.property_listbox.delete(0, END)
+		for i, row in enumerate(get_properties(self.lconn)):
+			self.property_listbox.insert(i, row[0])
+
+	def update_destinations_list(self) -> None:
+		self.destination_listbox.delete(0, END)
+		for i, row in enumerate(get_destinations(self.lconn)):
+			self.destination_listbox.insert(i, row[0])
+
+	def remove_selected_property(self) -> None:
+		selected_property: Optional[str] = self.property_listbox.get(self.property_listbox.curselection()[0]) if len(self.property_listbox.curselection()) > 0 else None
+		if selected_property:
+			yn = askyesno('Media Processor Configurator | Confirm', f'Are you sure you want to delete "{selected_property}"?')
+			if yn:
+				command(self.lconn, [f'remove property "{selected_property}"', f'remove setting "{selected_property}"', 'commit'])
+				self.update_properties_list()
+
+	def remove_selected_destination(self) -> None:
+		selected_destination: Optional[str] = self.destination_listbox.get(self.destination_listbox.curselection()[0]) if len(self.destination_listbox.curselection()) > 0 else None
+		if selected_destination:
+			yn = askyesno('Media Processor Configurator | Confirm', f'Are you sure you want to delete "{selected_destination}"?')
+			if yn:
+				command(self.lconn, [f'remove destination "{selected_destination}"', 'commit'])
+				self.update_destinations_list()
 
 class AddEditPropertyWindow:
 	def __init__(self, root_window: RootWindow) -> None:
@@ -125,15 +151,15 @@ class AddEditPropertyWindow:
 		Label(settings_frame, text='Output Container:').grid(row=2, column=0)
 		self.output_container_entry = Entry(settings_frame)
 		self.output_container_entry.grid(row=2, column=1)
-		Label(settings_frame, text='Folder:').grid(row=3, column=0)
-		self.folder_entry = Entry(settings_frame)
-		self.folder_entry.grid(row=3, column=1)
-		Label(settings_frame, text='Destination Server (leave blank for local):').grid(row=4, column=0)
+		Label(settings_frame, text='Destination Server (leave blank for local):').grid(row=3, column=0)
 		with self.root_window.lconn:
 			self.root_window.lconn.cur.execute('''SELECT user_at_ip FROM destination_servers;''')
 			user_at_ips = list(map(lambda uai: uai[0], self.root_window.lconn.cur.fetchall()))
 		self.destination_server_box = ttk.Combobox(settings_frame, values=user_at_ips)
-		self.destination_server_box.grid(row=4, column=1)
+		self.destination_server_box.grid(row=3, column=1)
+		Label(settings_frame, text='Folder:').grid(row=4, column=0)
+		self.folder_entry = Entry(settings_frame)
+		self.folder_entry.grid(row=4, column=1)
 		self.is_show_var = IntVar()
 		is_show_checkbox = Checkbutton(settings_frame, text='Is Show?', variable=self.is_show_var)
 		is_show_checkbox.grid(row=5, column=0, columnspan=2)
@@ -145,36 +171,52 @@ class AddEditPropertyWindow:
 		action_frame.grid(row=4, column=0, sticky=SE)
 		Button(action_frame, text='Save and Exit', command=self.save_and_exit).grid(row=0, column=0, padx=5)
 
-	def get_settings(self) -> dict:
-		'''Get the settings as a dict of dicts representing the DB entries'''
+		selected_property: Optional[str] = self.root_window.property_listbox.get(self.root_window.property_listbox.curselection()[0]) if len(self.root_window.property_listbox.curselection()) > 0 else None
+		if selected_property:
+			prop = get_properties(self.root_window.lconn, selected_property)
+			settings = get_property_settings(self.root_window.lconn, selected_property)
+			
+			self.property_entry.insert(0, prop[0])
+			self.pattern_entry.insert(0, prop[1])
+			self.partial_var.set(prop[2])
+
+			self.ffmpeg_args_entry.insert(0, settings[1])
+			self.output_container_entry.insert(0, settings[2])
+			self.destination_server_box.set(settings[3] if settings[3] else '')
+			self.folder_entry.insert(0, settings[4])
+			self.is_show_var.set(settings[5])
+			self.season_override_entry.insert(0, settings[6])
+
+	def get_values(self) -> dict:
+		'''Get the values as a dict of lists representing the DB entries'''
 		prop = self.property_entry.get()
 		return {
-			'properties': {
-				'property': prop,
-				'pattern': self.pattern_entry.get(),
-				'partial': self.partial_var.get()
-			},
-			'settings': {
-				'property': prop,
-				'ffmpeg_args': self.ffmpeg_args_entry.get(),
-				'output_container': self.output_container_entry.get(),
-				'folder': self.folder_entry.get(),
-				'user_at_ip': self.destination_server_box.get(),
-				'is_show': self.is_show_var.get(),
-				'season_override': self.season_override_entry.get()
-			}
+			'properties': [
+				prop,
+				self.pattern_entry.get(),
+				str(self.partial_var.get())
+			],
+			'settings': [
+				prop,
+				self.ffmpeg_args_entry.get(),
+				self.output_container_entry.get(),
+				self.folder_entry.get(),
+				self.destination_server_box.get(),
+				str(self.is_show_var.get()),
+				self.season_override_entry.get()
+			]
 		}
 
 	def save_and_exit(self) -> None:
 		'''Save changes and close TopLevel'''
 		# TODO: save settings to db
+		values = self.get_values()
+		command(self.root_window.lconn, [
+			'add property "' + '" "'.join(values['properties']) + '"',
+			'add setting "' +  '"  "'.join(values['settings']) + '"', 'commit'
+		])
 		self.add_edit_window.destroy()
-
-	# selected_property: Optional[str] = listbox.get(listbox.curselection()[0]) if len(listbox.curselection()) > 0 else None
-	# if selected_property:
-	# 	pass
-	# else:
-	# 	pass
+		self.root_window.update_properties_list()
 
 
 def driver(lconn: LockableSqliteConn) -> None:
